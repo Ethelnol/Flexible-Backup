@@ -1,0 +1,24 @@
+#!/bin/bash
+
+declare -a backupSources=()
+declare -a noBackupSources=()
+
+backupSources=("/boot" "/etc" "/home" "/root" "/srv" "/usr" "/var")
+noBackupSources=("/var/cache" "/var/run" "/var/tmp")
+outputDir="/mnt/Muscipula/backup"
+
+for i in "${backupSources[@]}"; do
+    declare exclude
+
+    exclude=""
+
+    if [[ "$i" == "/var" ]]; then
+        for j in "${noBackupSources[@]}"; do
+            exclude+="--exclude=\'$j\'"
+        done
+    fi
+
+     echo "Backing up: \"$i\""
+
+    tar "$exclude" -cf - "$i" -P | xz -z -9e -T0 > "$i.tar.xz"
+done
