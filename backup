@@ -1,24 +1,121 @@
 #!/bin/bash
 
-declare -a backupSources=()
-declare -a noBackupSources=()
-
-backupSources=("/boot" "/etc" "/home" "/root" "/srv" "/usr" "/var")
-noBackupSources=("/var/cache" "/var/run" "/var/tmp")
 outputDir="/mnt/Muscipula/backup"
 
-for i in "${backupSources[@]}"; do
-    declare exclude
+declare -i true=0
+declare -i false=1
 
-    exclude=""
+main(){
+	cd /
 
-    if [[ "$i" == "/var" ]]; then
-        for j in "${noBackupSources[@]}"; do
-            exclude+="--exclude=\'$j\'"
-        done
-    fi
+	declare -a backupSources=()
+	declare -a noBackupSources=()
+	archiveType=".tar.xz"
 
-     echo "Backing up: \"$i\""
+	backupSources=("boot" "etc" "home" "root" "srv" "usr" "var")
+	noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found")
 
-    tar "$exclude" -cf - "$i" -P | xz -z -9e -T0 > "$i.tar.xz"
-done
+	for i in "${backupSources[@]}"; do
+		Scan "0" "$i"
+		cd /
+	done
+}
+
+Scan(){
+	local tabCount=$1; shift
+	local i="$*"
+
+	EchoTabs "$tabCount"; echo -n "Scanning: "
+	if [[ "$PWD" == "/" ]]; then
+		echo "\"$PWD$i\""
+		i="$PWD$i"
+	else
+		echo "\"$PWD/$i\""
+		i="$PWD/$i"
+	fi
+
+	if (( $(sudo du -sb "$i" | awk '{print $1}') > $((5 * (2**30) -1)) )); then
+
+		#Check if file or directory
+		if [[ -f "$i" ]]; then
+			Backup "$i"
+			return
+		fi
+
+		#Must be a directory
+		#Step into
+		cd "$i" || exit
+
+		# shellcheck disable=SC2207
+		local curdirSubdirs=($(sudo ls -a))
+
+		for j in "${curdirSubdirs[@]}"; do
+			if [[ "$j" == "." ]] || [[ "$j" == ".." ]]; then continue; fi
+			
+			Scan $((tabCount+1)) "$j"
+			cd "$i" || exit
+
+		done
+	else
+		Backup "$tabCount" "$i"
+	fi
+}
+
+Backup(){
+	local tabCount=$1; shift
+	local i="$*"
+	
+	local exclude=""
+
+	if [[ "$i" == "/var" ]]; then
+		for j in "${noBackupSources[@]}"; do
+			exclude+="--exclude="\'"/$j"\'" "
+		done
+		echo "Excluded: $exclude"
+	fi
+
+
+	if WriteOrNot "$i"; then
+		
+		EchoTabs "$tabCount"; echo "Backing up: \"$i\""
+
+	#	echo -e "tar $exclude-cf - $i -P | xz -z -9e -T0 > $outputDir$i.tar.xz"
+		#tar "$exclude" -cf - "$i" -P | xz -z -9e -T0 > "$outputDir$i.tar.xz"
+
+		EchoTabs "$tabCount"; echo "Backed up to \"$outputDir$i$archiveType\" [ph]"
+	else
+		EchoTabs "$tabCount"; echo "Backup unnecessary, Skipping: \"$i\""
+	fi
+}
+
+WriteOrNot(){
+	checkDir="$*"
+	if [[ ! -f "$checkDir$archiveType" ]]; then
+		return $true
+	fi
+	if [[ "$(date -r "$checkDir$archiveType" "+%Y%m%d%H%M%S" )" < "$(date "+%Y%m%d%H%M%S")" ]]; then
+		return $true
+	else
+		return $false
+	fi
+}
+
+CheckSudo(){
+	if [[ "$(whoami)" != "root" ]]; then
+		echo "Not run as root, checking sudo privileges"
+		if [[ "$(sudo whoami)" != "root" ]]; then
+			echo "Error: requires sudo privileges"
+		else
+			echo -e "Privileges verified\n"
+		fi
+	fi
+}
+
+EchoTabs(){
+	local num=$1
+	for ((p=0; p<num; p++)); do
+		echo -ne "\t"
+	done
+}
+
+CheckSudo && main; exit
