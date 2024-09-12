@@ -5,7 +5,7 @@ declare -i false=1
 
 declare outputDir="/home/$USER/special-backup"
 declare -a backupSources=("boot" "etc" "home" "root" "srv" "usr" "var")
-declare -a noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found" "${outputDir:1}")
+declare -a noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found" "home/$USER/.cache" "${outputDir:1}")
 
 main(){
 	cd /
@@ -46,8 +46,11 @@ Scan(){
 		#Step into
 		cd "$i" || exit
 
+		IFS=$'\n'
+		set -o noglob
 		# shellcheck disable=SC2207
 		local curdirSubdirs=($(sudo ls -a))
+
 
 		for j in "${curdirSubdirs[@]}"; do
 			if [[ "$j" == "." ]] || [[ "$j" == ".." ]]; then continue; fi
@@ -84,16 +87,18 @@ Backup(){
 
 		if [[ -f "$outputDir$i.$archiveType" ]]; then
 			echo "WARNING: RM ENVOKED [ph]"
-			#sudo rm "$outputDir$i.$archiveType"
+			sudo rm "$outputDir$i.$archiveType"
 		fi
 
 		if [[ "$dirName" != "/" ]]; then
-			mkdir "$outputDir$dirName" 2> /dev/null
+			mkdir -p "$outputDir$dirName" 2> /dev/null
 		fi
 
-	#	echo -e "tar $exclude-cf - $i -P | xz -z -9e -T0 > $outputDir$i.tar.xz"
-		sudo tar "$exclude" -cf - "$i" -P | sudo gz -v --best -c > "$outputDir$i.$archiveType"
+		local SIZE="$(sudo du -sb "$i" | awk '{print $1}')"
 
+	#	echo -e "tar $exclude-cf - $i -P | xz -z -9e -T0 > $outputDir$i.tar.xz"
+		sudo tar "$exclude" -cf - "$i" -P | pv -brtpe -s "$SIZE" | sudo gzip -v --best -c > "$outputDir$i.$archiveType"
+	#	EchoTabs "$tabCount"; echo "Backup complete: $j [ph]"
 		EchoTabs "$tabCount"; echo "Backed complete"
 	else
 		EchoTabs "$tabCount"; echo "Backup unnecessary, Skipping: \"$i\""
