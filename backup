@@ -1,19 +1,15 @@
 #!/bin/bash
 
-outputDir="/mnt/Muscipula/backup"
-
 declare -i true=0
 declare -i false=1
 
+declare outputDir="/home/$USER/special-backup"
+declare -a backupSources=("boot" "etc" "home" "root" "srv" "usr" "var")
+declare -a noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found" "${outputDir:1}")
+
 main(){
 	cd /
-
-	declare -a backupSources=()
-	declare -a noBackupSources=()
-	archiveType=".tar.xz"
-
-	backupSources=("boot" "etc" "home" "root" "srv" "usr" "var")
-	noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found")
+	archiveType="tar.gz"
 
 	for i in "${backupSources[@]}"; do
 		Scan "0" "$i"
@@ -42,6 +38,10 @@ Scan(){
 			return
 		fi
 
+		if [[ "$i" == "/root" ]]; then
+			Backup "$i"
+		fi
+
 		#Must be a directory
 		#Step into
 		cd "$i" || exit
@@ -64,36 +64,51 @@ Scan(){
 Backup(){
 	local tabCount=$1; shift
 	local i="$*"
-	
-	local exclude=""
-
-	if [[ "$i" == "/var" ]]; then
-		for j in "${noBackupSources[@]}"; do
-			exclude+="--exclude="\'"/$j"\'" "
-		done
-		echo "Excluded: $exclude"
-	fi
-
 
 	if WriteOrNot "$i"; then
+		local exclude=""
+		local dirName="$(dirname "$i")"
+
+		if [[ "$i" == "/var" ]]; then
+			echo -n "Excluding: "
+			for j in "${noBackupSources[@]}"; do
+				# shellcheck disable=SC2140
+				exclude+="--exclude="\'"/$j"\'" "
+				# shellcheck disable=SC2140
+				echo -ne \'"$j"\'" "
+			done
+			echo -ne "\n"
+		fi
 		
 		EchoTabs "$tabCount"; echo "Backing up: \"$i\""
 
-	#	echo -e "tar $exclude-cf - $i -P | xz -z -9e -T0 > $outputDir$i.tar.xz"
-		#tar "$exclude" -cf - "$i" -P | xz -z -9e -T0 > "$outputDir$i.tar.xz"
+		if [[ -f "$outputDir$i.$archiveType" ]]; then
+			echo "WARNING: RM ENVOKED [ph]"
+			#sudo rm "$outputDir$i.$archiveType"
+		fi
 
-		EchoTabs "$tabCount"; echo "Backed up to \"$outputDir$i$archiveType\" [ph]"
+		if [[ "$dirName" != "/" ]]; then
+			mkdir "$outputDir$dirName" 2> /dev/null
+		fi
+
+	#	echo -e "tar $exclude-cf - $i -P | xz -z -9e -T0 > $outputDir$i.tar.xz"
+		sudo tar "$exclude" -cf - "$i" -P | sudo gz -v --best -c > "$outputDir$i.$archiveType"
+
+		EchoTabs "$tabCount"; echo "Backed complete"
 	else
 		EchoTabs "$tabCount"; echo "Backup unnecessary, Skipping: \"$i\""
 	fi
 }
 
 WriteOrNot(){
-	checkDir="$*"
-	if [[ ! -f "$checkDir$archiveType" ]]; then
-		return $true
-	fi
-	if [[ "$(date -r "$checkDir$archiveType" "+%Y%m%d%H%M%S" )" < "$(date "+%Y%m%d%H%M%S")" ]]; then
+	local checkSource="$*"
+
+	if [[ ! -f "$checkSource$archiveType" ]]; then return $true; fi
+
+	local fileTime; fileTime="$(date -r "$checkSource" "+%Y%m%d%H%M%S")"
+	local archiveTime; archiveTime="$(date -r "$outputDir$checkSource.$archiveType" "+%Y%m%d%H%M%S")"
+
+	if (( fileTime > archiveTime )); then
 		return $true
 	else
 		return $false
@@ -105,10 +120,13 @@ CheckSudo(){
 		echo "Not run as root, checking sudo privileges"
 		if [[ "$(sudo whoami)" != "root" ]]; then
 			echo "Error: requires sudo privileges"
+			return $false
 		else
 			echo -e "Privileges verified\n"
+			return $true
 		fi
 	fi
+	return $true
 }
 
 EchoTabs(){
@@ -118,4 +136,4 @@ EchoTabs(){
 	done
 }
 
-CheckSudo && main; exit
+CheckSudo; main; exit
