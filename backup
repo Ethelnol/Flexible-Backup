@@ -5,7 +5,10 @@ declare -i false=1
 
 declare outputDir="/home/$USER/special-backup"
 declare -a backupSources=("boot" "etc" "home" "root" "srv" "usr" "var")
-declare -a noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found" "home/$USER/.cache" "${outputDir:1}")
+declare -a noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found" "home/ethelnol/.cache" "${outputDir:1}")
+#declare -a noBackupSources=("cache" "run" "tmp" "lost+found" ".cache" "$(basename "$outputDir")")
+declare exclude=""
+for j in "${noBackupSources[@]}"; do exclude+="--exclude=\"/$j\" "; done
 
 main(){
 	cd /
@@ -69,19 +72,17 @@ Backup(){
 	local i="$*"
 
 	if WriteOrNot "$i"; then
-		local exclude=""
-		local dirName="$(dirname "$i")"
 
-		if [[ "$i" == "/var" ]]; then
-			echo -n "Excluding: "
-			for j in "${noBackupSources[@]}"; do
-				# shellcheck disable=SC2140
-				exclude+="--exclude="\'"/$j"\'" "
-				# shellcheck disable=SC2140
-				echo -ne \'"$j"\'" "
-			done
-			echo -ne "\n"
-		fi
+		for k in "${noBackupSources[@]}"; do
+			if [[ "$i" == "/$k" ]]; then
+				EchoTabs "$tabCount"; echo "Exception found.  Skipping: \"$i\""
+				return
+			fi
+		done
+
+		local exclude=""
+		# shellcheck disable=SC2155
+		local dirName="$(dirname "$i")"
 		
 		EchoTabs "$tabCount"; echo "Backing up: \"$i\""
 
@@ -94,10 +95,15 @@ Backup(){
 			mkdir -p "$outputDir$dirName" 2> /dev/null
 		fi
 
+		# shellcheck disable=SC2155
 		local SIZE="$(sudo du -sb "$i" | awk '{print $1}')"
 
 	#	echo -e "tar $exclude-cf - $i -P | xz -z -9e -T0 > $outputDir$i.tar.xz"
-		sudo tar "$exclude" -cf - "$i" -P | pv -brtpe -s "$SIZE" | sudo gzip -v --best -c > "$outputDir$i.$archiveType"
+		sudo tar \
+		--exclude="/var/cache" --exclude="/var/run" --exclude="/var/tmp" --exclude="/home/lost+found" --exclude="/home/ethelnol/.cache" --exclude="/home/ethelnol/special-backup" \
+		-cf - "$i" -P |\
+		pv -brtpe -s "$SIZE" |\
+		sudo gzip -v --best -c > "$outputDir$i.$archiveType"
 	#	EchoTabs "$tabCount"; echo "Backup complete: $j [ph]"
 		EchoTabs "$tabCount"; echo "Backed complete"
 	else
