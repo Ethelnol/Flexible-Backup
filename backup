@@ -3,133 +3,165 @@
 declare -i true=0
 declare -i false=1
 
+declare archiveType="tar.gz"
 declare outputDir="/home/$USER/special-backup"
-declare -a backupSources=("boot" "etc" "home" "root" "srv" "usr" "var")
-declare -a noBackupSources=("var" "home/lost+found" "${HOME:1}/.cache" "${outputDir:1}")
-#declare -a noBackupSources=("var/cache" "var/run" "var/tmp" "home/lost+found" "${HOME:1}/.cache" "${outputDir:1}")
-declare exclude=""
+declare backupRoot="/"
+#whitelist and blacklist are assumed to be inside $backupDirRoot
+declare -a dirWhitelist=("boot" "etc" "home" "root" "srv" "usr" "var")
+declare -a dirBlacklist=("home/lost+found" "home/$USER/.cache" "home/$USER/.local/share/Trash" "media" "mnt" "var/cache" "var/run" "var/tmp" "${outputDir:1}")
 
 main(){
-	cd /
-	archiveType="tar.gz"
+	local i
 
-	for i in "${backupSources[@]}"; do
-		Scan "0" "$i"
-		cd /
+	cd "$backupRoot" || exit
+
+	for i in "${dirWhitelist[@]}"; do
+		Scan 0 "$i"
+		cd "$backupRoot" || exit
 	done
+
+	echo "Backup complete"	
+
+	sudo chown -R "$USER:$USER" "$outputDir"
 }
 
+#returns true if (backs up input) or (any subdir is backed up)
+#returns false if (input is blacklisted) or (no backups made in subdir)
 Scan(){
 	local tabCount=$1; shift
 	local i="$*"
+	local j
+	local returnBool=$false
 
-	EchoTabs "$tabCount"; echo -n "Scanning: "
-	if [[ "$PWD" == "/" ]]; then
-		echo "\"$PWD$i\""
-		i="$PWD$i"
-	else
-		echo "\"$PWD/$i\""
-		i="$PWD/$i"
+	if [[ "$PWD" == "/" ]]
+	then i="/$i"
+	else i="$PWD/$i"
 	fi
 
-	for m in "${noBackupSources[@]}"; do
-		if [[ "${i:0:$(( ${#m} + 1 ))}" == "/$m" ]]; then
-			EchoTabs "$tabCount"; echo "Exception found.  Skipping: \"$i\""
-			return
+	EchoTabs "$tabCount"; echo "Scanning: \"$i\""
+
+	#if (blacklisted)
+	for j in "${dirBlacklist[@]}"; do
+		#${i:1:SizeOf$j} == $j
+		if [[ "${i:1:${#j}}" == "$j" ]]; then
+			EchoTabs "$tabCount"; echo -e "Exception found.  Skipping: \"$i\"\n"
+			return $false
 		fi
 	done
 
+	#if (equal or larger than 5g)
 	if (( $(sudo du -sb "$i" | awk '{print $1}') > $((5 * (2**30) - 1)) )); then
 
 		#Check if file or directory
 		if [[ -f "$i" ]]; then
-			Backup "$i"
-			return
+			Backup "$tabCount" "$i"
+			return $true
 		fi
 
-		if [[ "$i" == "/root" ]]; then
-			Backup "$i"
-			return
-		fi
+		DeeperScan "$tabCount" "$i"
 
-		#Must be a directory
-		#Step into
-		cd "$i" || exit
-
-		IFS=$'\n'
-		set -o noglob
-		# shellcheck disable=SC2207
-		local curdirSubdirs=($(sudo ls -a))
-
-
-		for j in "${curdirSubdirs[@]}"; do
-			if [[ "$j" == "." ]] || [[ "$j" == ".." ]]; then continue; fi
-			
-			Scan $((tabCount+1)) "$j"
-			cd "$i" || exit
-		done
-		return
+		return $?
 	fi
-	
-	for m in "${noBackupSources[@]}"; do
-		if [[ "/${m:0:$(( ${#i} - 1 ))}" == "$i" ]]; then
-			Scan "$i"
-			return
+
+	#if (has blacklisted subdir)
+	for j in "${dirBlacklist[@]}"; do
+		#/${j:0:SizeOf$i} == $i
+		if [[ "/${j:0:$(( ${#i} - 1 ))}" == "$i" ]]; then
+			DeeperScan "$tabCount" "$i"
+
+			return $?
 		fi
 	done
 
 	Backup "$tabCount" "$i"
-	return
+
+	return $true
 }
 
+#returns true if (any subdir is backed up)
+#returns false if (no subdir is backed up)
+DeeperScan(){
+	local tabCount="$1"; shift
+	local i="$*"
+	local j
+	local returnBool=$false
+
+	cd "$i" || exit
+
+	IFS=$'\n'
+	set -o noglob
+	# shellcheck disable=SC2207
+	local curdirSubdirs=($(sudo ls -a))
+
+	for j in "${curdirSubdirs[@]}"; do
+		if [[ "$j" == "." ]] || [[ "$j" == ".." ]]; then continue; fi
+		
+		Scan $((tabCount+1)) "$j"
+		if [[ "$?" == "$true" ]]; then returnBool=$true; fi
+
+		cd "$i" || exit
+	done
+
+	return $returnBool
+}
+
+#returns true if (backup runs successfully)
+#returns false if (backup wasn't run)
 Backup(){
 	local tabCount=$1; shift
 	local i="$*"
 
+	#if destination archive (doesn't exist) or (is older than the source)
 	if WriteOrNot "$i"; then
+		local j
 
-		for k in "${noBackupSources[@]}"; do
-			if [[ "$i" == "/$k" ]]; then
-				echo "ERROR: EXCEPTION SLIPPED THROUGH [ph]"
-				exit
-			fi
-		done
-
-		local exclude=""
-		# shellcheck disable=SC2155
-		local dirName="$(dirname "$i")"
+		##if (blacklisted) [should not happen]
+		#for j in "${dirBlacklist[@]}"; do
+		#	if [[ "$i" == "/$j" ]]; then 
+		#		echo -e "ERROR: EXCEPTION SLIPPED THROUGH [ph]\n"
+		#		exit
+		#	fi
+		#done
 		
 		EchoTabs "$tabCount"; echo "Backing up: \"$i\""
 
+		#if (archive exists)
 		if [[ -f "$outputDir$i.$archiveType" ]]; then
-			echo "WARNING: RM ENVOKED [ph]"
+			#echo "WARNING: RM ENVOKED [ph]"
 			sudo rm "$outputDir$i.$archiveType"
 		fi
-
-		if [[ "$dirName" != "/" ]]; then
-			mkdir -p "$outputDir$dirName" 2> /dev/null
+		
+		#if ($i isn't in backupRoot)
+		if [[ "$(dirname "$i")" != "$backupRoot" ]]; then
+			sudo mkdir -p "$outputDir$(dirname "$i")" 2> /dev/null
 		fi
 
-		# shellcheck disable=SC2155
-		local SIZE="$(sudo du -sb "$i" | awk '{print $1}')"
+		Compress "$i"
 
-	#	echo -e "tar $exclude-cf - $i -P | xz -z -9e -T0 > $outputDir$i.tar.xz"
-	#	sudo tar \
-	#	--exclude="/var/cache" --exclude="/var/run" --exclude="/var/tmp" --exclude="/home/lost+found" --exclude="/home/ethelnol/.cache" --exclude="/home/ethelnol/special-backup" \
-	#	-cf - "$i" -P |\
-	#	pv -brtpe -s "$SIZE" |\
-	#	sudo gzip -v --best -c > "$outputDir$i.$archiveType"
-		EchoTabs "$tabCount"; echo "Backup complete: $j [ph]"
-	#	EchoTabs "$tabCount"; echo "Backed complete"
-	else
-		EchoTabs "$tabCount"; echo "Backup unnecessary, Skipping: \"$i\""
+		EchoTabs "$tabCount"; echo -e "Backed up: \"$i\"\n"
+		return $true
 	fi
+
+	EchoTabs "$tabCount"; echo -e "Backup unnecessary.  Skipping: \"$i\"\n"
+	return $false
+}
+
+Compress(){
+	local i="$*"
+	sudo tar --create --file - "$i" --absolute-names --directory="$(basename "$i") ." |\
+	pv --bytes --rate --timer --progress --eta --size "$(\
+		sudo du -sb "$i" | awk '{print $1}'\
+	)" |\
+	sudo gzip --keep --quiet --best --stdout |\
+	sudo tee "$outputDir$i.$archiveType" > /dev/null
 }
 
 WriteOrNot(){
 	local checkSource="$*"
 
-	if [[ ! -f "$checkSource$archiveType" ]]; then return $true; fi
+	if [[ ! -f "$outputDir$checkSource.$archiveType" ]]; then
+		return $true
+	fi
 
 	local -i fileTime; fileTime="$(date -r "$checkSource" "+%Y%m%d%H%M%S")"
 	local -i archiveTime; archiveTime="$(date -r "$outputDir$checkSource.$archiveType" "+%Y%m%d%H%M%S")"
@@ -143,23 +175,21 @@ WriteOrNot(){
 
 CheckSudo(){
 	if [[ "$(whoami)" != "root" ]]; then
-		echo "Not run as root, checking sudo privileges"
-		if [[ "$(sudo whoami)" != "root" ]]; then
-			echo "Error: requires sudo privileges"
-			return $false
-		else
-			echo -e "Privileges verified\n"
-			return $true
+		if [[ "$(sudo whoami)" != "root" ]]
+		then echo -e "Error: requires sudo privileges\n"; return $false
+		else echo -e "Privileges verified\n"; return $true
 		fi
 	fi
+
 	return $true
 }
 
 EchoTabs(){
 	local num=$1
-	for ((p=0; p<num; p++)); do
+	local i
+	for ((i=0; i<num; i++)); do
 		echo -ne "\t"
 	done
 }
 
-CheckSudo; main; exit
+CheckSudo && main; exit $?
