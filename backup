@@ -3,131 +3,144 @@
 declare -i true=0
 declare -i false=1
 
-declare archiveType="tar.gz"
-declare outputDir="/home/$USER/special-backup"
-declare backupRoot="/"
-#whitelist and blacklist are assumed to be inside $backupDirRoot
-declare -a dirWhitelist=("boot" "etc" "home" "root" "srv" "usr" "var")
-declare -a dirBlacklist=("home/lost+found" "home/$USER/.cache" "home/$USER/.local/share/Trash" "media" "mnt" "var/cache" "var/run" "var/tmp" "${outputDir:1}")
+declare conf="$HOME/.config/flexible-backup.conf"
 
+declare archiveType="tar.gz"
+declare outputDir
+declare backupRoot
+#whitelist and blacklist are assumed to be inside $backupDirRoot
+declare -a dirWhitelist=()
+declare -a dirBlacklist=()
+declare -a requiredScan=()
+
+#returns true if (whitelisted input is backed up) or (whitelisted subdir is backed up)
+#returns false if (no whitelisted input is backed up) or (no whitelisted subdir is backed up)
 main(){
 	local i
+	local returnBool=$false
 
-	cd "$backupRoot" || exit
+	cd "$backupRoot" || exit 2
 
 	for i in "${dirWhitelist[@]}"; do
-		Scan 0 "$i"
-		cd "$backupRoot" || exit
+
+		if [[ "$(Scan $true 0 "$i")" == "$true" ]]; then returnBool=$true; fi
+		cd "$backupRoot" || exit 2
 	done
 
-	echo "Backup complete"	
+	if [[ "$returnBool" == "$true" ]]
+		then echo "Backup complete"; sudo chown -R "$USER:$USER" "$outputDir"
+		else echo "Backup complete: No backups made"
+	fi
 
-	sudo chown -R "$USER:$USER" "$outputDir"
+	return $returnBool
 }
 
-#returns true if (backs up input) or (any subdir is backed up)
-#returns false if (input is blacklisted) or (no backups made in subdir)
+#returns true if (input is backed up) or (any subdir is backed up)
+#returns false if (input is blacklisted) or (input not backed up) or (no subdir is backed up)
 Scan(){
-	local tabCount=$1; shift
+	local -i checkSize=$1; shift
+	local -i tabCount=$1; shift
 	local i="$*"
 	local j
-	local returnBool=$false
+	local -i returnBool=$false
 
 	if [[ "$PWD" == "/" ]]
 	then i="/$i"
 	else i="$PWD/$i"
 	fi
 
-	EchoTabs "$tabCount"; echo "Scanning: \"$i\""
+	EchoTabs $tabCount; echo "Scanning: \"$i\""
 
 	#if (blacklisted)
 	for j in "${dirBlacklist[@]}"; do
 		#${i:1:SizeOf$j} == $j
 		if [[ "${i:1:${#j}}" == "$j" ]]; then
-			EchoTabs "$tabCount"; echo -e "Exception found.  Skipping: \"$i\"\n"
+			EchoTabs $tabCount; echo -e "Exception found.  Skipping: \"$i\"\n"
 			return $false
 		fi
 	done
 
-	#if (equal or larger than 5g)
-	if (( $(sudo du -sb "$i" | awk '{print $1}') > $((5 * (2**30) - 1)) )); then
+	#if (told to check size)
+	if (( checkSize == true )); then
+		#if (equal or larger than 5g)
+		if (( $(sudo du -sb "$i" | awk '{print $1}') > $((5 * (2**30) - 1)) )); then
 
-		#Check if file or directory
-		if [[ -f "$i" ]]; then
-			Backup "$tabCount" "$i"
-			return $true
+			#if ($i is a file)
+			if [[ -f "$i" ]]; then
+				Backup $tabCount "$i"
+				return $?
+			fi
+
+			if [[ "$(DeeperScan $true $tabCount "$i")" ]]
+				then return $true
+				else return $false
+			fi
 		fi
-
-		DeeperScan "$tabCount" "$i"
-
-		return $?
 	fi
 
 	#if (has blacklisted subdir)
 	for j in "${dirBlacklist[@]}"; do
 		#/${j:0:SizeOf$i} == $i
 		if [[ "/${j:0:$(( ${#i} - 1 ))}" == "$i" ]]; then
-			DeeperScan "$tabCount" "$i"
-
+			DeeperScan $false $tabCount "$i"
 			return $?
 		fi
 	done
 
-	Backup "$tabCount" "$i"
+	#if (is requiredScan dir) or (has requiredScan subdir)
+	for j in "${requiredScan[@]}"; do
+		#/${j:0:SizeOf$i} == $i
+		if [[ "/${j:0:$(( ${#i} - 1 ))}" == "$i" ]]; then
+			DeeperScan $false $tabCount "$i"
+			return $?
+		fi
+	done
 
-	return $true
+	Backup $tabCount "$i"
+	return $?
 }
 
 #returns true if (any subdir is backed up)
 #returns false if (no subdir is backed up)
 DeeperScan(){
-	local tabCount="$1"; shift
+	local -i checkSize=$1; shift
+	local -i tabCount=$1; shift
 	local i="$*"
 	local j
 	local returnBool=$false
+	local -a curdirSubdirs 
 
-	cd "$i" || exit
+	cd "$i" || exit 2
 
 	IFS=$'\n'
 	set -o noglob
-	# shellcheck disable=SC2207
-	local curdirSubdirs=($(sudo ls -a))
+	read -ra curdirSubdirs <<< "$(ls -a)"
 
 	for j in "${curdirSubdirs[@]}"; do
 		if [[ "$j" == "." ]] || [[ "$j" == ".." ]]; then continue; fi
 		
-		Scan $((tabCount+1)) "$j"
-		if [[ "$?" == "$true" ]]; then returnBool=$true; fi
+		Scan $checkSize $((tabCount+1)) "$j"
+		if $?; then returnBool=$true; fi
 
-		cd "$i" || exit
+		cd "$i" || exit 2
 	done
 
 	return $returnBool
 }
 
-#returns true if (backup runs successfully)
-#returns false if (backup wasn't run)
+#returns true if (runs backup)
+#returns false if (does not run backup)
 Backup(){
-	local tabCount=$1; shift
+	local -i tabCount=$1; shift
 	local i="$*"
 
 	#if destination archive (doesn't exist) or (is older than the source)
 	if WriteOrNot "$i"; then
-		local j
-
-		##if (blacklisted) [should not happen]
-		#for j in "${dirBlacklist[@]}"; do
-		#	if [[ "$i" == "/$j" ]]; then 
-		#		echo -e "ERROR: EXCEPTION SLIPPED THROUGH [ph]\n"
-		#		exit
-		#	fi
-		#done
 		
-		EchoTabs "$tabCount"; echo "Backing up: \"$i\""
+		EchoTabs $tabCount; echo "Backing up: \"$i\""
 
 		#if (archive exists)
 		if [[ -f "$outputDir$i.$archiveType" ]]; then
-			#echo "WARNING: RM ENVOKED [ph]"
 			sudo rm "$outputDir$i.$archiveType"
 		fi
 		
@@ -138,24 +151,16 @@ Backup(){
 
 		Compress "$i"
 
-		EchoTabs "$tabCount"; echo -e "Backed up: \"$i\"\n"
+		EchoTabs $tabCount; echo -e "Backed up: \"$i\"\n"
 		return $true
 	fi
 
-	EchoTabs "$tabCount"; echo -e "Backup unnecessary.  Skipping: \"$i\"\n"
+	EchoTabs $tabCount; echo -e "Backup unnecessary.  Skipping: \"$i\"\n"
 	return $false
 }
 
-Compress(){
-	local i="$*"
-	sudo tar --create --file - "$i" --absolute-names --directory="$(basename "$i") ." |\
-	pv --bytes --rate --timer --progress --eta --size "$(\
-		sudo du -sb "$i" | awk '{print $1}'\
-	)" |\
-	sudo gzip --keep --quiet --best --stdout |\
-	sudo tee "$outputDir$i.$archiveType" > /dev/null
-}
-
+#returns true if (destination archive does not exist) or (destination archive is older than source)
+#returns false if (destination archive is younger than source)
 WriteOrNot(){
 	local checkSource="$*"
 
@@ -173,23 +178,102 @@ WriteOrNot(){
 	fi
 }
 
-CheckSudo(){
-	if [[ "$(whoami)" != "root" ]]; then
-		if [[ "$(sudo whoami)" != "root" ]]
-		then echo -e "Error: requires sudo privileges\n"; return $false
-		else echo -e "Privileges verified\n"; return $true
-		fi
-	fi
+Compress(){
+	local i="$*"
 
-	return $true
+	(\
+		sudo tar --absolute-names --directory "$(sudo dirname "$i")" --create --file - "$(sudo basename "$i")" |\
+		pv --byte --rate --timer --progress --eta --size "$(\
+			sudo du -sb "$i" | awk '{print $1}'\
+		)" |\
+		sudo gzip --keep --quiet --best --stdout |\
+		sudo tee "$outputDir$i.$archiveType" &> /dev/null
+	)
 }
 
 EchoTabs(){
-	local num=$1
-	local i
+	local -i num=$1
+	local -i i
 	for ((i=0; i<num; i++)); do
 		echo -ne "\t"
 	done
 }
 
-CheckSudo && main; exit $?
+#returns true if (user is root) or (user executes sudo)
+#returns false if (user cannot execute sudo) or (user does not execute sudo)
+SudoCheck(){
+	if [[ "$(whoami)" != "root" ]]; then
+		(sudo -l &> /dev/null) && sudo echo -e "Sudo privileges verified\n" && return $true
+
+		echo -e "Error: requires sudo privileges\n"; return $false
+	fi
+	return $true
+}
+
+CheckConf(){
+	if [[ -f "$conf" ]];
+		then ReadConf; return $true
+		else MakeConf; return $false
+	fi
+}
+
+ReadConf(){
+	
+	. "$HOME/.config/flexible-backup.conf"
+
+	IFS=","
+
+	backupRoot="$BackupRootDir"
+	if [[ "${backupRoot:0:1}" != "/" ]]; then backupRoot="/$backupRoot"; fi
+	if [[ "${backupRoot:0-1}" == "/" ]] && [[ "$backupRoot" != "/" ]]
+		then backupRoot="${backupRoot:0:0-1}"; fi
+	
+	outputDir="$OutputLocation"
+	if [[ "${outputDir:0:1}" != "/" ]]; then outputDir="/$outputDir"; fi
+	if [[ "${outputDir:0-1}" == "/" ]] && [[ "$outputDir" != "/" ]]
+		then outputDir="${outputDir:0:0-1}"; fi
+
+	read -ra dirWhitelist <<< "$Whitelist"
+
+	for i in "${!dirWhitelist[@]}"; do
+		if [[ "${dirWhitelist[i]:0:1}" == "/" ]]; then dirWhitelist[i]="${dirWhitelist[$i]:1}"; fi
+		if [[ "${dirWhitelist[i]:0-1}" == "/" ]]; then dirWhitelist[i]="${dirWhitelist[$i]:0:0-1}"; fi
+	done
+
+	read -ra dirBlacklist <<< "$Blacklist"
+
+	for i in "${!dirBlacklist[@]}"; do
+		if [[ "${dirBlacklist[i]:0:1}" == "/" ]]; then dirBlacklist[i]="${dirBlacklist[$i]:1}"; fi
+		if [[ "${dirBlacklist[i]:0-1}" == "/" ]]; then dirBlacklist[i]="${dirBlacklist[$i]:0:0-1}"; fi
+	done
+	dirBlacklist+=("${outputDir:1}")
+
+	read -ra requiredScan <<< "$SplinteredBackupRequired"
+
+	for i in "${!requiredScan[@]}"; do
+		if [[ "${requiredScan[i]:0:1}" == "/" ]]; then requiredScan[i]="${requiredScan[$i]:1}"; fi
+		if [[ "${requiredScan[i]:0-1}" == "/" ]]; then requiredScan[i]="${requiredScan[$i]:0:0-1}"; fi
+	done
+	
+	unset BackupRoot
+	unset OutputLocation
+	unset Whitelist
+	unset Blacklist
+	unset SplinteredBackupRequired
+}
+
+MakeConf(){
+	sudo touch "$conf"
+	sudo cat "$(dirname -- "$0")/flexible-backup.conf.example" | sudo tee "$conf" &> /dev/null
+	sudo chmod 600 "$conf"
+	sudo chown "$USER:$USER" "$conf"
+
+	echo "Config file made"
+	echo "Config can be found and editted at \"$conf\""
+}
+
+SudoCheck && CheckConf && main
+if (( $? == true ))
+	then exit $true
+	else exit $false
+fi
