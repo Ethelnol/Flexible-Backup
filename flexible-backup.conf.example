@@ -8,7 +8,7 @@ Whitelist=/home
 
 #Directories that won't be made into a single archive even in smaller than 5gb
 #Good for folders with many files like /bin
-SplinteredBackupRequired=/home
+SplinteredBackupRequired=/home,$HOME
 
 #Files and directories that will be excluded
 #Seperate entries by comma

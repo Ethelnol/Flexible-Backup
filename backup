@@ -13,6 +13,10 @@ declare -a dirWhitelist=()
 declare -a dirBlacklist=()
 declare -a requiredScan=()
 
+declare -i fiveGigabytes=$((5 * (2**30)))
+
+declare lastBackup=""
+
 #returns true if (whitelisted input is backed up) or (whitelisted subdir is backed up)
 #returns false if (no whitelisted input is backed up) or (no whitelisted subdir is backed up)
 main(){
@@ -23,7 +27,8 @@ main(){
 
 	for i in "${dirWhitelist[@]}"; do
 
-		if [[ "$(Scan $true 0 "$i")" == "$true" ]]; then returnBool=$true; fi
+		Scan $true 0 "$i"
+		if  (( $? )); then returnBool=$true; fi
 		cd "$backupRoot" || exit 2
 	done
 
@@ -61,20 +66,18 @@ Scan(){
 	done
 
 	#if (told to check size)
-	if (( checkSize == true )); then
+	if [[ "$checkSize" == "$true" ]]; then
 		#if (equal or larger than 5g)
-		if (( $(sudo du -sb "$i" | awk '{print $1}') > $((5 * (2**30) - 1)) )); then
-
+		if (( $(sudo du -sb "$i" | awk '{print $1}') > fiveGigabytes )); then
+		#if [[ "$(echo -e "$SIZE\n$(( 5 * ( 2 ** 30 ) ))" | sort -V | head -1 )" == "$SIZE" ]]; then
 			#if ($i is a file)
 			if [[ -f "$i" ]]; then
 				Backup $tabCount "$i"
 				return $?
 			fi
 
-			if [[ "$(DeeperScan $true $tabCount "$i")" ]]
-				then return $true
-				else return $false
-			fi
+			DeeperScan $true $tabCount "$i"
+			return $?
 		fi
 	fi
 
@@ -112,15 +115,14 @@ DeeperScan(){
 
 	cd "$i" || exit 2
 
-	IFS=$'\n'
 	set -o noglob
-	read -ra curdirSubdirs <<< "$(ls -a)"
+	mapfile -t curdirSubdirs < <(sudo ls -a)
 
 	for j in "${curdirSubdirs[@]}"; do
 		if [[ "$j" == "." ]] || [[ "$j" == ".." ]]; then continue; fi
 		
 		Scan $checkSize $((tabCount+1)) "$j"
-		if $?; then returnBool=$true; fi
+		if [[ "$?" == "$true" ]]; then returnBool=$true; fi
 
 		cd "$i" || exit 2
 	done
@@ -136,7 +138,6 @@ Backup(){
 
 	#if destination archive (doesn't exist) or (is older than the source)
 	if WriteOrNot "$i"; then
-		
 		EchoTabs $tabCount; echo "Backing up: \"$i\""
 
 		#if (archive exists)
@@ -171,15 +172,16 @@ WriteOrNot(){
 	local -i fileTime; fileTime="$(date -r "$checkSource" "+%Y%m%d%H%M%S")"
 	local -i archiveTime; archiveTime="$(date -r "$outputDir$checkSource.$archiveType" "+%Y%m%d%H%M%S")"
 
-	if (( fileTime > archiveTime )); then
-		return $true
-	else
-		return $false
+	if (( fileTime > archiveTime ))
+		then return $true
+		else return $false
 	fi
 }
 
 Compress(){
 	local i="$*"
+
+	lastBackup="$outputDir$i.$archiveType"
 
 	(\
 		sudo tar --absolute-names --directory "$(sudo dirname "$i")" --create --file - "$(sudo basename "$i")" |\
@@ -251,8 +253,8 @@ ReadConf(){
 	read -ra requiredScan <<< "$SplinteredBackupRequired"
 
 	for i in "${!requiredScan[@]}"; do
-		if [[ "${requiredScan[i]:0:1}" == "/" ]]; then requiredScan[i]="${requiredScan[$i]:1}"; fi
-		if [[ "${requiredScan[i]:0-1}" == "/" ]]; then requiredScan[i]="${requiredScan[$i]:0:0-1}"; fi
+		if [[ "${requiredScan[i]:0:1}" == "/" ]]; then requiredScan[i]="${requiredScan[i]:1}"; fi
+		if [[ "${requiredScan[i]:0-1}" == "/" ]]; then requiredScan[i]="${requiredScan[i]:0:0-1}"; fi
 	done
 	
 	unset BackupRoot
@@ -260,6 +262,8 @@ ReadConf(){
 	unset Whitelist
 	unset Blacklist
 	unset SplinteredBackupRequired
+
+	#echo -ne "$backupRoot\n$outputDir\n"; for i in "${dirWhitelist[@]}"; do echo -n "$i,"; done; echo ""; for i in "${dirBlacklist[@]}"; do echo -n "$i,"; done; echo ""; for i in "${requiredScan[@]}"; do echo -n "$i,"; done; echo ""
 }
 
 MakeConf(){
@@ -272,8 +276,16 @@ MakeConf(){
 	echo "Config can be found and editted at \"$conf\""
 }
 
+# shellcheck disable=SC2317
+SIGINT_Cleanup(){
+	if [[ -f "$lastBackup" ]]; then
+		echo "Program canceled, cleaning up $lastBackup"
+		sudo rm "$lastBackup"
+	fi
+}
+
+#has command handle SIGINT itself
+trap 'SIGINT_Cleanup;exit 1' INT
+
 SudoCheck && CheckConf && main
-if (( $? == true ))
-	then exit $true
-	else exit $false
-fi
+exit $?
