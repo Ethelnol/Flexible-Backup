@@ -1,18 +1,18 @@
-#The directory the program concider the root of the backup
+#The directory the program considers the root of the backup
 #If unknown, leave as '/'
 BackupRootDir=/
 
-#Files and directories that should be backed up in the BackupRoot
-#Seperate entries by comma
+#Files and directories that should be backed up under the BackupRoot
+#Separate entries by comma
 Whitelist=/home
 
-#Directories that won't be made into a single archive even in smaller than 5gb
-#Good for folders with many files like /bin
+#Directories that won't be made into a single archive even if smaller than 5gb
+#Archives will be made of all the entries in the directory specifically instead of one big archive
+#Good for directories with constantly updating files like /bin
 SplinteredBackupRequired=/home,$HOME
 
 #Files and directories that will be excluded
-#Seperate entries by comma
 Blacklist=/home/lost+found,$HOME/.cache,$HOME/.local/share/Trash,
 
 #Specify where files should be sent after backup
-OutputLocation=$HOME/special-backup
+OutputLocation=$HOME/flexible_backup
