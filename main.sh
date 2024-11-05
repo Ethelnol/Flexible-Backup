@@ -139,7 +139,11 @@ CheckDependancies(){
 
 	#if (binaries are missing) or (local files are missing)
 	if [[ -n "$missing" ]]; then
-		echo -n "Missing dependencies: "
+		echo -n "Missing dependenc"
+		if (( $(echo "$missing" | wc -w) > 1 ))
+			then echo -n "y: "
+			else echo -n "ies: "
+		fi
 		for i in $missing; do echo -n "\"$i\" "; done
 		echo -e "\b"
 	fi
