@@ -4,9 +4,12 @@ export fiveGigabytes=$(( 5 * (2**30) ))
 
 export outputDir=""
 export backupRoot=""
-export -a dirBlacklist=()
-export -a requiredScan=()
-export archiveType="gz"
+export dirBlacklist=()
+export requiredScan=()
+export archive=()
+export archiveExt=""
+export archiveOpts=()
+export archiveExtensions=()
 
 #whitelist and blacklist are assumed to be inside $backupDirRoot
 export pvOpts=""
@@ -28,14 +31,15 @@ Scan(){
 	local -i tabCount=$2; shift 2
 	local i="$*"
 
+	local -i isFile
 	local j
 
-	i="/$i"
-
-	if [[ "$PWD" != "/" ]]; then i="$PWD$i"; fi
+	#using -d instead of -f so (( ! isFile )) naturally reads as (( not isFile ))
+	[[ -d "$i" ]]
+	isFile=$?
 
 	if (( quietLevel < 2 )); then
-		if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" ]]; then
+		if (( ! isFile )) || (( isFile && ! quietLevel )); then
 			EchoStr $tabCount "\t"
 			echo -n "$(basename "$i"): "
 			echo -n "Scanning"
@@ -45,37 +49,46 @@ Scan(){
 	#if (blacklisted)
 	for j in "${dirBlacklist[@]}"; do
 		#${i:1:SizeOf$j} == $j
-		if [[ "${i:1:${#j}}" == "$j" ]]; then
+		if [[ "${i:0:${#j}}" == "$j" ]]; then
 			if (( quietLevel < 2)); then
-				if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" ]]; then
+				if (( ! isFile )) || (( isFile && ! quietLevel )); then
 					EchoStr 8 "\b"; echo -n "Skipping"
 				fi
-				if $verbose; then echo -n ", blacklisted"; fi
+				if $verbose; then
+					if [[ "$i" == "$outputDir" ]]
+						then echo -n ", won't backup output directory"
+						else echo -n ", blacklisted"
+					fi
+				fi
 				echo ""
 			fi
-
 			return 1
 		fi
 	done
 
-	if [[ -f "$i" ]]; then Backup $tabCount "$i" 0; return $?; fi
+	if (( isFile )); then Backup $tabCount "$i" $isFile; return $?; fi
 
 	#if (has blacklisted subdir)
 	for j in "${dirBlacklist[@]}"; do
 		#/${j:0:SizeOf$i} == $i
-		if [[ "/${j:0:$(( ${#i} - 1 ))}" == "$i" ]]; then
-			if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" && "$quietLevel" -lt "2" ]]; then
-				local returnBool=false
+		if [[ "${j:0:${#i}}" == "$i" ]]; then
+			if (( quietLevel < 2)); then
+				if (( ! isFile )) || (( isFile && ! quietLevel )); then
+					local returnBool=false
 
-				echo -e " subentries\n"
-				DeeperScan "$checkSize" $tabCount "$i" && returnBool=true
-				echo ""
+					echo -e " subentries\n"
+					DeeperScan "$checkSize" $tabCount "$i" && returnBool=true
+					echo ""
 
-				if $returnBool
-					then return 0
-					else return 1
+					if $returnBool
+						then return 0
+						else return 1
+					fi
 				fi
 			fi
+			
+			unset isFile
+			unset j
 
 			DeeperScan "$checkSize" $tabCount "$i"
 			
@@ -86,19 +99,24 @@ Scan(){
 	#if (is requiredScan dir) or (has requiredScan subdir)
 	for j in "${requiredScan[@]}"; do
 		#/${j:0:SizeOf$i} == $i
-		if [[ "/${j:0:$(( ${#i} - 1 ))}" == "$i" ]]; then
-			if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" && "$quietLevel" -lt "2" ]]; then
-				local returnBool=false
-				
-				echo -e " subentries\n"
-				DeeperScan "$checkSize" $tabCount "$i" && returnBool=true
-				echo ""
+		if [[ "${j:0:${#i}}" == "$i" ]]; then
+			if (( quietLevel < 2)); then
+				if (( ! isFile )) || (( isFile && ! quietLevel )); then
+					local returnBool=false
+					
+					echo -e " subentries\n"
+					DeeperScan "$checkSize" $tabCount "$i" && returnBool=true
+					echo ""
 
-				if $returnBool
-					then return 0
-					else return 1
+					if $returnBool
+						then return 0
+						else return 1
+					fi
 				fi
 			fi
+
+			unset isFile
+			unset j
 
 			DeeperScan "$checkSize" $tabCount "$i"
 			
@@ -117,16 +135,22 @@ Scan(){
 	fi
 
 	if $checkSize; then
-		if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" && "$quietLevel" -lt "2" ]]; then
-			local returnBool=false
+		unset checkSize
+		unset isFile
+		unset j
 
-			echo -e " subentries\n"
-			DeeperScan true $tabCount "$i" && returnBool=true
-			echo ""
+		if (( quietLevel < 2)); then
+			if (( ! isFile )) || (( isFile && ! quietLevel )); then
+				local returnBool=false
 
-			if $returnBool
-				then return 0
-				else return 1
+				echo -e " subentries\n"
+				DeeperScan true $tabCount "$i" && returnBool=true
+				echo ""
+
+				if $returnBool
+					then return 0
+					else return 1
+				fi
 			fi
 		fi
 	
@@ -134,7 +158,7 @@ Scan(){
 
 		return $?
 	else
-		Backup $tabCount "$i" $size
+		Backup $tabCount "$i" $size $isFile
 	fi
 	
 	return $?
@@ -142,29 +166,17 @@ Scan(){
 
 #param $1 is bool
 #param $2 is int
-#param $* are arr elements
+#param $3 is str
 #returns 0 if (any subdir is backed up)
 #returns 1 if (no subdir is backed up)
 DeeperScan(){
-	local checkSize=$1
-	local -i tabCount=$2; shift 2
-	local i="$*"
-
-	local j
-	local returnBool=false
-	local -a curdirSubdirs 
-
-	cd "$i" || exit 2
-
 	set -o noglob
-	mapfile -t curdirSubdirs < <(sudo ls -a)
+	mapfile -t curdirSubdirs < <(sudo ls -a "$i")
 
 	for j in "${curdirSubdirs[@]}"; do
 		if [[ "$j" == "." ]] || [[ "$j" == ".." ]]; then continue; fi
 		
-		if Scan "$checkSize" $(( tabCount + 1 )) "$j"; then returnBool=true; fi
-
-		cd "$i" || exit 2
+		Scan "$checkSize" $(( tabCount + 1 )) "$i/$j" && returnBool=true
 	done
 	
 	if $returnBool;
@@ -185,43 +197,58 @@ CheckSize(){
 #param $1 is int
 #param $2 is str
 #param $3 is int
+#param $4 is int
 #returns 0 if (runs backup)
 #returns 1 if (does not run backup)
 Backup(){
-	local -i tabCount=$1
 	local i="$2"
-	local -i size=$3
-	local -i j=0
+	local isFile=$4
 
 	#if destination archive (doesn't exist) or (is older than the source)
 	if WriteOrNot "$i"; then
-
-		#if (archive exists)
-		if [[ -f "$outputDir$i.tar.$archiveType" ]] && ! $dryRun; then
-			sudo rm "$outputDir$i.tar.$archiveType"
-		elif [[ -d "$outputDir$i" ]] && ! $dryRun; then
-			sudo rm -r "$outputDir$i"
-		fi
-		
-		#if ($i isn't in backupRoot)
-		if [[ "$(dirname "$i")" != "$backupRoot" ]] && ! $dryRun; then
-			sudo mkdir -p "$outputDir$(dirname "$i")" 2> /dev/null
-		fi
+		local -i tabCount=$1
 
 		if (( quietLevel < 2 )); then
-			if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" ]]; then
+			if (( ! isFile )) || (( isFile && ! quietLevel )); then
 				EchoStr 8 "\b"
 				echo "Backing up"
 			fi
 		fi
 
 		if ! $dryRun; then
-			[[ -f "$i" ]]
-			Compress "$i" $? $size
+			local -i size=$3
+
+			#if ($i isn't in backupRoot)
+			if [[ ! -d "$outputDir$(dirname "$i")" ]]; then
+				sudo mkdir -p "$outputDir$(dirname "$i")" 2> /dev/null
+			elif [[ -d "$outputDir$i" ]]; then
+				sudo rm -r "$outputDir$i"
+			elif [[ -f "$outputDir$i.tar.$archiveExt" ]]; then
+				sudo rm "$outputDir$i.tar.$archiveExt"
+			else
+				local j="$i"
+				local k
+
+				#removes old archive, even if archive is higher in directory tree
+				while [[ "$j" != "/" ]]; do
+					for k in "${archiveExtensions[@]}"; do	
+						if [[ -f "$outputDir$j.tar.$k" ]]; then
+							sudo rm "$outputDir$j.tar.$k"
+							break 2
+						fi
+					done
+					j="$(dirname "$j")"
+				done
+
+				unset j
+				unset k
+			fi
+
+			Compress "$i" "$isFile" "$size"
 		fi
 
 		if (( quietLevel < 2 )); then
-			if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" ]]; then
+			if (( ! isFile )) || (( isFile && ! quietLevel )); then
 				echo -ne "\e[1A\e[K"
 				if ! $dryRun; then echo -ne "\e[1A\e[K"; fi
 				EchoStr $tabCount "\t"
@@ -232,7 +259,7 @@ Backup(){
 	fi
 
 	if (( quietLevel < 2)); then
-		if [[ -f "$i" && "$quietLevel" -eq "0" ]] || [[ -d "$i" ]]; then
+		if (( ! isFile )) || (( isFile && ! quietLevel )); then
 			EchoStr 8 "\b"; echo -n "Skipping"
 			if $verbose; then echo -n ", no changes detected. "; fi
 			echo ""
@@ -248,15 +275,15 @@ Backup(){
 WriteOrNot(){
 	local source="$1"
 
-	if [[ ! -f "$outputDir$source.tar.$archiveType" ]]
-		then return 0
+	if [[ ! -f "$outputDir$source.tar.$archiveExt" ]]; then
+		return 0
 	fi
 
 	local -i fileTime
 	fileTime="$(date -r "$source" "+%Y%m%d%H%M%S")"
 
 	local -i archiveTime
-	archiveTime="$(date -r "$outputDir$source.tar.$archiveType" "+%Y%m%d%H%M%S")"
+	archiveTime="$(date -r "$outputDir$source.tar.$archiveExt" "+%Y%m%d%H%M%S")"
 
 	if (( fileTime > archiveTime));
 		then return 0
@@ -277,17 +304,20 @@ Compress(){
 
 	lastBackupSize=$size
 	totalSize=$(( totalSize + size ))
-	lastBackup="$outputDir$i.tar.$archiveType"
+	lastBackup="$outputDir$i.tar.$archiveExt"
 
-	if (( quietLevel )) && (( ! isFile ))
-		then tempOpts="--quiet"
-		else tempOpts="$pvOpts"
+	if (( quietLevel > 1 )); then
+		tempOpts="--quiet"
+	elif (( quietLevel )) && (( isFile )); then
+		tempOpts="--quiet"
+	else
+		tempOpts="$pvOpts"
 	fi
 
-	sudo tar --absolute-names --directory "$(sudo dirname "$i")" --create --file - "$(sudo basename "$i")" 2> /dev/null |\
+	sudo tar --absolute-names --directory "$(sudo dirname "$i")" --create --file - "$(sudo basename "$i")" 2>/dev/null |\
 	eval "pv $tempOpts --size $size" |\
-	sudo gzip --keep --quiet --best --stdout 2> /dev/null |\
-	sudo tee "$outputDir$i.tar.$archiveType" &> /dev/null
+	"${archive[@]}" 2>/dev/null |\
+	sudo tee "$outputDir$i.tar.$archiveExt" &> /dev/null
 
 	lastBackup=""
 	lastBackupSize=0

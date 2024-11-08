@@ -2,10 +2,10 @@
 
 set -o errexit
 
-declare SOURCE=${BASH_SOURCE[0]}
-declare DIR=""
-declare returnInt=0
-declare missing=""
+export SOURCE=${BASH_SOURCE[0]}
+export DIR=""
+export returnInt=0
+export missing=""
 
 #stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
 #ty stackoverflow :P
@@ -39,16 +39,17 @@ unset -v missing
 
 source "$DIR/main.sh"
 
-if ! SudoCheck; then return 1; fi
+if ! SudoCheck; then exit $?; fi
 unset -f SudoCheck
 
-if ! CheckDependancies; then return $?; fi
+if ! CheckDependancies; then exit $?; fi
 unset -f CheckDependancies
 
 source "$DIR/scan_backup.sh"
 source "$DIR/conf.sh"
 
-if ! CheckConf; then return 1; fi
+if ! CheckConf; then exit $?; fi
+
 unset -f CheckConf
 unset -f ReadConf
 unset -f MakeConf
@@ -56,18 +57,13 @@ unset -f ConfFormat
 
 source "$DIR/text_formatting.sh"
 
-if ! GetOpts "$@"; then return 1; fi
+if ! GetOpts "$@"; then exit 1; fi
 unset -f GetOpts
 unset -f OutputNeatly
 unset -f DisplayHelp
 unset -f HelpText
 unset -v DIR
 
-tput civis
-
-Start
-returnInt=$?
-
-tput cnorm
+Start; returnInt=$?
 
 exit $returnInt

@@ -12,7 +12,18 @@ Whitelist=/home
 SplinteredBackupRequired=/home,$HOME
 
 #Files and directories that will be excluded
+#If no leading '/' is provided, then a leading '/' will be assumed
+#Separate entries by comma
 Blacklist=/home/lost+found,$HOME/.cache,$HOME/.local/share/Trash,
 
 #Specify where files should be sent after backup
 OutputLocation=$HOME/flexible_backup
+
+#Which compression type should be used
+#gzip=0, bzip2=1, xz=2
+CompressionType=0
+
+#Set as number between 1-9, --fast, or --best
+#Supports -[1-9]e, -e, or --extreme when using xz
+#eg CompressionLevel="-6 -e"
+CompressionLevel="-6"

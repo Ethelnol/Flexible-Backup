@@ -2,7 +2,7 @@
 
 export outputDir=""
 export backupRoot=""
-export -a dirWhitelist=()
+export dirWhitelist=()
 
 #whitelist and blacklist are assumed to be inside $backupDirRoot
 export pvOpts=""
@@ -17,16 +17,15 @@ Start(){
 	local i
 	local returnBool=false
 
-	cd "$backupRoot" || exit 2
 
-	#if ($OSTYPE is [macOS] )
+	#if ( $OSTYPE is [macOS] )
 	if [[ "${OSTYPE:0:6}" == "darwin" ]]; then noByteDU=true; fi
 
+	tput civis
 	for i in "${dirWhitelist[@]}"; do
-		if Scan true 0 "$i"; then returnBool=true; fi
-		
-		cd "$backupRoot" || exit 2
+		Scan true 0 "$i" && returnBool=true
 	done
+	tput cnorm
 
 	if (( quietLevel < 2 )); then echo ""; fi
 	echo -n "Backup complete"
@@ -34,12 +33,10 @@ Start(){
 		echo ""; sudo chown -R "$USER:$USER" "$outputDir"
 		GetTotalSizeBackedUp
 
-		tput cnorm
 		return 0
 	else
 		echo ": No backups made"
 
-		tput cnorm
 		return 1
 	fi
 }
@@ -104,9 +101,9 @@ GetOpts(){
 				if [[ "$i" == "-" ]]; then
 					echo "Option not provided -- \"-?\""
 				elif [[ "$i" =~ ^[-]{1,} ]]; then
-					echo "Option not recognised -- \"$i\""
+					echo "Option not recognized -- \"$i\""
 				else
-					echo "Argument not recognised -- \"$i\""
+					echo "Argument not recognized -- \"$i\""
 				fi
 
 				return 1
