@@ -64,20 +64,17 @@ ReadConf(){
 
 	case $CompressionLevel in
 		--best | --fast | -[1-9])
-			;;
-
+			;;			
 		-[1-9]e | -[1-9]\ -e | -[1-9]\ --extreme )
 			if (( CompressionType != 2 )); then
 				echo "Cannot use extreme compression, only valid with xz"
 				return 1
 			fi
 			;;
-
 		"")
 			CompressionLevel="-6"
 			echo "CompressionLevel not set, defaulting to \"-6\""
 			;;
-
 		* )
 			echo "Invalid option -- '$CompressionLevel'"
 			return 1

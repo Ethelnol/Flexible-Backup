@@ -14,17 +14,14 @@ export quietLevel=0
 #returns 0 if (whitelisted input is backed up) or (subdir of whitelisted input is backed up)
 #returns 1 if (no whitelisted input is backed up) or (no subdir of whitelisted input is backed up)
 Start(){
-	local i
+	local i=""
 	local returnBool=false
-
 
 	#if ( $OSTYPE is [macOS] )
 	if [[ "${OSTYPE:0:6}" == "darwin" ]]; then noByteDU=true; fi
 
 	tput civis
-	for i in "${dirWhitelist[@]}"; do
-		Scan true 0 "$i" && returnBool=true
-	done
+	DeeperScan 0 true "${dirWhitelist[@]}" && returnBool=true
 	tput cnorm
 
 	if (( quietLevel < 2 )); then echo ""; fi
@@ -41,9 +38,9 @@ Start(){
 	fi
 }
 
+#$@ are strs - tempArr
 #returns 0 if (no options are passed) or (only valid options are passed)
 #returns 1 if ("-h" or "--help" is passed) or (an unknown option is passed)
-#param $* are arr elements
 GetOpts(){
 	local i
 	local -i j
@@ -59,7 +56,6 @@ GetOpts(){
 				i="${i:1}"
 			done
 			optsArr+=("$i")
-
 		elif [[ "$i" =~ ^[-]{1,} ]] && (( ${#i} > 2 )); then
 			for (( j = 1; j < ${#i}; j++ )); do
 				optsArr+=("-${i:$j:1}")
@@ -67,7 +63,6 @@ GetOpts(){
 		else
 			optsArr+=("$i")
 		fi
-
 	done
 
 	for i in "${optsArr[@]}"; do
@@ -89,7 +84,6 @@ GetOpts(){
 					fi
 					return 1
 				fi
-
 				;;
 			-s|--simulate|--just-print|--dry-run)
 				dryRun=true
@@ -128,10 +122,13 @@ GetOpts(){
 }
 
 #returns number of missing dependencies
-CheckDependancies(){
+CheckDependencies(){
+
 	#if (specific binary does not exist)
 	if [[ ! -f /usr/bin/tar ]]; then missing+="tar "; fi
-	if [[ ! -f /usr/bin/gzip ]]; then missing+="gzip "; fi
+	if [[ "$archiveExt" == "gz" ]] && [[ ! -f /usr/bin/gzip ]]; then missing+="gzip "; fi
+	if [[ "$archiveExt" == "bz2" ]] && [[ ! -f /usr/bin/bzip2 ]]; then missing+="bzip2 "; fi
+	if [[ "$archiveExt" == "xz" ]] && [[ ! -f /usr/bin/xz ]]; then missing+="xz "; fi
 	if [[ ! -f /usr/bin/pv ]]; then missing+="pv "; fi
 
 	#if (binaries are missing) or (local files are missing)
@@ -159,7 +156,7 @@ SudoCheck(){
 	return 0
 }
 
-# shellcheck disable=SC2317
+#shellcheck disable=SC2317
 SIGINT_Trap(){
 	echo "Program canceled"
 	if [[ -n "$lastBackup" ]] && ! $dryRun; then

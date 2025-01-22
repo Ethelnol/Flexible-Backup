@@ -4,7 +4,6 @@ set -o errexit
 
 export SOURCE=${BASH_SOURCE[0]}
 export DIR=""
-export returnInt=0
 export missing=""
 
 #stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
@@ -42,18 +41,17 @@ source "$DIR/main.sh"
 if ! SudoCheck; then exit $?; fi
 unset -f SudoCheck
 
-if ! CheckDependancies; then exit $?; fi
-unset -f CheckDependancies
-
 source "$DIR/scan_backup.sh"
 source "$DIR/conf.sh"
 
 if ! CheckConf; then exit $?; fi
-
 unset -f CheckConf
 unset -f ReadConf
 unset -f MakeConf
 unset -f ConfFormat
+
+if ! CheckDependencies; then exit $?; fi
+unset -f CheckDependencies
 
 source "$DIR/text_formatting.sh"
 
@@ -64,6 +62,6 @@ unset -f DisplayHelp
 unset -f HelpText
 unset -v DIR
 
-Start; returnInt=$?
+Start
 
-exit $returnInt
+exit $?

@@ -9,20 +9,21 @@ export totalSize=0
 export decimalOfTotalSize=0
 export sigFigs=2
 
-#param $1 is int
-#param $2 is str
+#$1 is int - num
+#$2 is str - str
 EchoStr(){
 	local -i num=$1
 	local str="$2"
 
 	local -i i
+	
 	for (( i = 0; i < num; i++ )); do echo -ne "$str"; done
 }
 
-#param $1 is bool
-#param $2 is int
-#param $3 is int if ($1 == true)
-#param $* is arr elements
+#$1 is bool - centered
+#$2 is int - left
+#if $1; then $3 is int
+#$* are arr elements - arr
 OutputNeatly(){
 	local centered=$1
 	local -i left=$2; shift 2
@@ -92,7 +93,7 @@ DisplayHelp(){
 	echo ""
 }
 
-#param $1 is str
+#$1 is str
 HelpText(){
 	case "$1" in
 		"description")
