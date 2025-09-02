@@ -1,29 +1,35 @@
-#The directory the program considers the root of the backup
+#The directory considered the root of the backup
 #If unknown, leave as '/'
 BackupRootDir=/
+
+#Directories over MaxSize will have their subfiles and subdirectories checked instead
+#Supports unsigned integer values with double letter abbreviation from KB up to and including TB
+#Defaults to 5GB
+MaxSize=5GB
 
 #Files and directories that should be backed up under the BackupRoot
 #Separate entries by comma
 Whitelist=/home
 
-#Directories that won't be made into a single archive even if smaller than 5gb
-#Archives will be made of all the entries in the directory specifically instead of one big archive
-#Good for directories with constantly updating files like /bin
-SplinteredBackupRequired=/home,$HOME
-
 #Files and directories that will be excluded
-#If no leading '/' is provided, then a leading '/' will be assumed
 #Separate entries by comma
-Blacklist=/home/lost+found,$HOME/.cache,$HOME/.local/share/Trash,
+Blacklist=/home/lost+found,$HOME/.cache,$HOME/.local/share/Trash
 
-#Specify where files should be sent after backup
+#Directories that won't be made into a single archive, even if smaller than MaxSize
+#Good for directories with constantly updating files like /bin or /home
+SplitBackup=/bin,/home,$HOME
+
+#Directories that will be made into a single archive, even if equal to or larger than MaxSize
+#CollectiveBackup=
+
+#Specify where to store backup
 OutputLocation=$HOME/flexible_backup
 
 #Which compression type should be used
-#gzip=0, bzip2=1, xz=2
-CompressionType=0
+#none=0, gzip=1, bzip2=2, xz=3
+CompressionType=1
 
-#Set as number between 1-9, --fast, or --best
-#Supports -[1-9]e, -e, or --extreme when using xz
-#eg CompressionLevel="-6 -e"
+#Set as -# where number if between 1-9, --fast, or --best
+#Supports -0 and --extreme flag with xz
+#eg "-6 -e"
 CompressionLevel="-6"
