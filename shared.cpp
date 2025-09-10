@@ -6,9 +6,10 @@
 
 #include "shared.h"
 
-uid_t u_uid; //user id
-uint64_t maxSize; //max directory size
+uid_t u_uid = 0; //user id
+uint64_t maxSize = 0; //max directory size
 string comArgs; //arguments for compression call
+path config; //path to config
 path conExt; //extension to affix to archive
 path home; //user home directory
 path bacRoot; //directory to begin backup in
@@ -16,41 +17,41 @@ path bacDir; //directory of archives
 vector<gid_t> groups; //user groups
 vector<path> whitelist, blacklist, split, collective;
 
-bool isRealPath(const path& entry, bool symlink){
-	if (entry.empty()) return false;
-	if (!exists(entry)) return false;
-	if (is_other(entry)) return false;
-	if (!symlink && is_symlink(entry)) return false;
+bool isRealPath(const path& p, bool symlink){
+	if (p.empty()) return false;
+	if (!exists(p)) return false;
+	if (is_other(p)) return false;
+	if (!symlink && is_symlink(p)) return false;
 
 	return true;
 }
 
-bool checkPerm(const path& entry, const char rwx){
-	const file_status s = status(entry);
+bool checkPerm(const path& p, const char rwx){
+	const file_status s = status(p);
 
-	uid_t e_uid; //entry uid
-	gid_t e_gid; //entry gid
+	uid_t e_uid; //p uid
+	gid_t e_gid; //p gid
 	{
 		struct stat fileStat{};
-		stat(entry.c_str(), &fileStat);
+		stat(p.c_str(), &fileStat);
 		e_uid = fileStat.st_uid;
 		e_gid = fileStat.st_gid;
 	}
 
 	//user, group, other
-	std::array<perms, 3> p{perms::none, perms::none, perms::none};
+	std::array<perms, 3> perm{perms::none, perms::none, perms::none};
 	
 	switch (rwx){
 		case 'r':{
-			p = {perms::owner_read,  perms::group_read,  perms::others_read};
+			perm = {perms::owner_read, perms::group_read, perms::others_read};
 			break;
 		}
 		case 'w':{
-			p = {perms::owner_write, perms::group_write, perms::others_write};
+			perm = {perms::owner_write, perms::group_write, perms::others_write};
 			break;
 		}
 		case 'x':{
-			p = {perms::owner_exec, perms::group_exec, perms::others_exec,};
+			perm = {perms::owner_exec, perms::group_exec, perms::others_exec,};
 			break;
 		}
 		default:{
@@ -61,17 +62,19 @@ bool checkPerm(const path& entry, const char rwx){
 	}
 
 	//check for owner permissions
-	if (e_uid == u_uid)
-		return (s.permissions() & p[0]) != perms::none;
+	if (e_uid == u_uid){
+		return (s.permissions() & perm[0]) != perms::none;
+	}
 
 	//check for group permissions for all user groups
-	for (gid_t u_gid : groups)
-		if (e_gid == u_gid)
-			return (s.permissions() & p[1]) != perms::none;
+	for (gid_t u_gid : groups){
+		if (e_gid == u_gid){
+			return (s.permissions() & perm[1]) != perms::none;
+		}
+	}
 
 	//check for others' permissions
-	if ((s.permissions() & p[2]) != perms::none)
-		return true;
+	if ((s.permissions() & perm[2]) != perms::none){return true;}
 
 	return false;
 }
@@ -94,6 +97,14 @@ void sig_handler(int signal, path* i_arch){
 
 void error(const string& error, const string& detail, const uint8_t code){
 	::error(error.c_str(), detail.c_str(), code);
+}
+
+void error(const char* error, const string& detail, const uint8_t code){
+	::error(error, detail.c_str(), code);
+}
+
+void error(const string& error, const char* detail, const uint8_t code){
+	::error(error.c_str(), detail, code);
 }
 
 void error(const char* error, const char* detail, const uint8_t code){

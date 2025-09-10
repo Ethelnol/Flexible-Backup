@@ -42,12 +42,10 @@ bool backup(const path& entry){
   * Returns p without extensions after stopper or first stem of p if stopper isn't in p
   * @param ext populated with first extension after stem, stopper if stopper is present
   * @example removeArchive("/path/to/file.txt.tar.xz", ".tar") returns "file.txt" and ".tar"
-  * @example removeArchive("/path/to/file.txt.tar.xz", ".mp4") returns "file" and ".txt"
+  * @example removeArchive("/file.txt.tar.xz", ".mp4") returns "file" and ".txt"
   **/
 path getStem(path p, const path& stopper, path& ext){
-	while (p.has_extension() && p.extension() != stopper){
-		p = p.stem();
-	}
+	while (p.has_extension() && p.extension() != stopper){p = p.stem();}
 	ext = p.extension();
 	return p.stem();
 }
