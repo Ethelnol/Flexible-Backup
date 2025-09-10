@@ -5,13 +5,11 @@
 #define FLEXIBLEBACKUP_BACKUP_H
 
 #include <filesystem>
-#include <string>
 
 /**
-  * Backs up entry to conf[bacDir]
-  * @param conf array containing config information
-  * @pre entry exists can be read from
-  * @pre conf.at(bacDir) exists can be written to
+  * Backs up entry to bacDir/entry.comExt
+  * @pre entry exists and can be read from
+  * @pre bacDir exists and can be written to
   * @return true if backup was attempted
   * @return false if newer archive exists (already backed up)
   **/

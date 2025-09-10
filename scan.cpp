@@ -16,29 +16,32 @@
                           << std::setw(17) << std::right \
 						  << m << " : " << entry.filename() \
 						  << std::flush)
-#define full(d, e) (tab(d) + 22 + e.string().length()) //setw(17) + " : " +\" + e.length() + \"
+#define full(d, e) (tab(d) + 22 + e.string().length()) //setw(17) + " : " + '\"' + e.length() + '\"'
 
-int main(){
+int main(int argc, char* argv[]){
 	signal(SIGINT, sig_handler);
 
 	//set uid and gid information
 	{
-		int numGroups = 0;
-		passwd* user = getpwnam(getlogin());
-		u_uid = user->pw_uid;
-		home = user->pw_dir;
-		getgrouplist(getenv("USER"), user->pw_gid, nullptr,
-					 &numGroups);
-		groups.resize(numGroups);
-		getgrouplist(getenv("USER"), user->pw_gid, groups.data(),
-					 &numGroups);
+		char* user = getenv("USER");
+		passwd* login = getpwnam(getlogin());
+		int ngroups = 0;
+		uint32_t group = login->pw_gid;
+		u_uid = login->pw_uid;
+		home = login->pw_dir;
+
+		config = (home / ".config/flexible-backup.conf");
+
+		getgrouplist(user, group, nullptr, &ngroups);
+		groups.resize(ngroups);
+		getgrouplist(user, group, groups.data(), &ngroups);
 	}
 
-	OpenConfig();
+	GetArgs(argc, argv);
 
-	if (!isRealPath(bacDir)){
-		create_directories(bacDir);
-	}
+	if (!OpenConfig()){return 1;}
+
+	if (!isRealPath(bacDir)){create_directories(bacDir);}
 	if (!checkPerm(bacDir, 'w')){
 		error("backup directory is not writable", bacDir);
 	}
@@ -52,7 +55,7 @@ int main(){
 		return ret;
 	}
 	//no predefined whitelisted directories
-	else{return plunge(0, bacRoot);}
+	return plunge(0, bacRoot);
 }
 
 bool plunge(const size_t depth, const path& dir){
@@ -91,12 +94,14 @@ bool startBackup(const size_t depth, const path& entry){
   **/
 bool vecSearch(const path& p, const vector<path>& vec, const bool invert){
 	if (!invert){
-		for (const path& root : vec)
+		for (const path& root : vec){
 			if (isSubPath(root, p) || root == p){return true;}
+		}
 	}
 	else{
-		for (const path& entry : vec)
+		for (const path& entry : vec){
 			if (isSubPath(p, entry) || p == entry){return true;}
+		}
 	}
 
 	return false;
@@ -137,20 +142,18 @@ bool isSubPath(const path& root, const path& entry){
 	//stop values
 	const auto s_root = root.end(), s_entry = entry.end();
 
-	while (i_root != s_root && i_entry != s_entry)
-		if (i_root++->string() != i_entry++->string()) return false;
+	while (i_root != s_root && i_entry != s_entry){
+		if (*i_root++ != *i_entry++){return false;}
+	}
 
 	return (i_entry != s_entry);
 }
 
 uint64_t getSize(const path& root){
-	if (!isRealPath(root) || !checkPerm(root, 'r')) return 0;
-
-	if (!is_directory(root))
-		return file_size(root);
+	if (!isRealPath(root) || !checkPerm(root, 'r')){return 0;}
+	if (!is_directory(root)){return file_size(root);}
 
 	uint64_t ret = 0;
-	for (const path& entry : directory_iterator(root))
-		ret += getSize(entry);
+	for (const path& entry : directory_iterator(root)){ret += getSize(entry);}
 	return ret;
 }

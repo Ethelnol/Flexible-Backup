@@ -19,9 +19,7 @@ bool plunge(size_t depth, const path& dir);
 
 /**
   * Backups, calls plunge with, or skips entry from backup
-  * @param depth number of directories recursed from conf[bacRoot]
-  * @param conf array of config info, see shared.h
-  * @param lists blacklist, whitelist, split, and collective paths
+  * @param depth number of directories recursed from bacRoot
   * @return true if entry or any path under entry was backed up
   **/
 bool scan(size_t depth, const path& entry);

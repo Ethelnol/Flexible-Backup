@@ -15,21 +15,21 @@ using namespace std::filesystem;
 using std::string;
 using std::vector;
 
-extern uid_t u_uid; //user id
+extern uid_t u_uid;
 extern uint64_t maxSize;
 extern string comArgs;
-extern path bacRoot, bacDir, home, conExt;
+extern path config, bacRoot, bacDir, home, conExt;
 extern vector<gid_t> groups;
 extern vector<path> whitelist, blacklist, split, collective;
 
 /**
-  * Check if entry is a real path that is a directory or file
-  * @param symlink allow for entry to be a symlink
+  * Check if p is a real path that is a directory or file
+  * @param symlink allow for p to be a symlink
   * @return
   **/
-bool isRealPath(const path& entry, bool symlink = false);
+bool isRealPath(const path& p, bool symlink = false);
 
-bool checkPerm(const path& entry, char rwx);
+bool checkPerm(const path& p, char rwx);
 
 /**
   * Output error message and exit
@@ -45,13 +45,25 @@ void sig_handler(int signal);
 void sig_handler(int signal, path* i_arch);
 
 /**
-  * Output "Error: <error><detail>" and exits with code
+  * Output "Error: (error)(detail)" and exits with code
   * @param code defaults to 1
   **/
 void error(const string& error, const string& detail = "", uint8_t code = 1);
 
 /**
-  * Output "Error: <error><detail>" and exits with code
+  * Output "Error: (error)(detail)" and exits with code
+  * @param code defaults to 1
+  **/
+void error(const char* error, const string& detail = "", uint8_t code = 1);
+
+/**
+  * Output "Error: (error)(detail)" and exits with code
+  * @param code defaults to 1
+  **/
+void error(const string& error, const char* detail, uint8_t code = 1);
+
+/**
+  * Output "Error: (error)(detail)" and exits with code
   * @param code defaults to 1
   **/
 void error(const char* error, const char* detail, uint8_t code = 1);
