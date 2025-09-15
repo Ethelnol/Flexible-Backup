@@ -14,18 +14,6 @@ enum{
 	tar, gzip, bzip2, xz
 };
 
-/**
-  * Checks if c exists in str
-  * @return returns first index of c in str
-  * @return SIZE_MAX if c isn't in str
-  **/
-size_t charAt(const char c, const string& str){
-	for (size_t i = 0; i < str.length(); i++){
-		if (str.at(i) == c){return i;}
-	}
-	return SIZE_MAX;
-}
-
 bool OpenConfig(){
 	if (!is_regular_file(config)){
 		error("config path is invalid \"", (config.string() + '"'));
@@ -179,7 +167,7 @@ void ReadLine(string& line, vector<array<string, 2>>& bucket, uint8_t& comType){
 	string word;
 	size_t i;
 
-	for (i = charAt('=', line) + 1; i < line.length(); ++i){
+	for (i = line.find_first_of('=') + 1; i < line.length(); ++i){
 		if (line.at(i) == '$'){
 			const size_t beg = i;
 
@@ -469,7 +457,7 @@ bool GetArgsHelper(const string& arg, const array<array<string, 9>, 2>& options)
 	}
 	//multi character format (--help)
 	else{
-		size_t eq = charAt('=', arg);
+		size_t eq = arg.find_first_of('=');
 		argRoot = arg.substr(2, eq - 2);
 		o = arg.substr(eq + 1, arg.size() - (eq + 1));
 		multiChar = true;

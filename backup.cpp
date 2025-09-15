@@ -45,7 +45,7 @@ bool backup(const path& entry){
   * @example removeArchive("/file.txt.tar.xz", ".mp4") returns "file" and ".txt"
   **/
 path getStem(path p, const path& stopper, path& ext){
-	while (p.has_extension() && p.extension() != stopper){p = p.stem();}
+	while (p.stem().has_extension() && p.extension() != stopper){p = p.stem();}
 	ext = p.extension();
 	return p.stem();
 }
@@ -66,7 +66,7 @@ bool removeArchive(path archive){
 			if (ext != tar || a_stem != i_stem){continue;}
 
 			size_t i_hash = hash_value(i);
-			if (remove_table.contains(i_hash)){continue;}
+			if (remove_table.find(i_hash) != remove_table.end()){continue;}
 
 			remove_table.insert({i_hash, i});
 

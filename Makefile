@@ -1,21 +1,21 @@
 ALL: FlexibleBackup
 CPP=g++
 OPTIMISED=O0
-VERSION=c++20
+VERSION=17
 
-backup.o : backup.cpp backup.h shared.o
-	$(CPP) -$(OPTIMISED) -std=$(VERSION) -c backup.cpp
+backup.o: backup.cpp backup.h shared.o
+	$(CPP) -$(OPTIMISED) -std=c++$(VERSION) -c backup.cpp
 
-config.o : config.cpp config.h shared.o
-	$(CPP) -$(OPTIMISED) -std=$(VERSION) -c config.cpp
+config.o: config.cpp config.h shared.o
+	$(CPP) -$(OPTIMISED) -std=c++$(VERSION) -c config.cpp
 
-scan.o : scan.cpp scan.h shared.o
-	$(CPP) -$(OPTIMISED) -std=$(VERSION) -c scan.cpp
+scan.o: scan.cpp scan.h shared.o
+	$(CPP) -$(OPTIMISED) -std=c++$(VERSION) -c scan.cpp
 
-shared.o : shared.cpp shared.h
-	$(CPP) -$(OPTIMISED) -std=$(VERSION) -c shared.cpp
+shared.o: shared.cpp shared.h
+	$(CPP) -$(OPTIMISED) -std=c++$(VERSION) -c shared.cpp
 
-FlexibleBackup : backup.o config.o scan.o shared.o
+FlexibleBackup: backup.o config.o scan.o shared.o
 	$(CPP) -o FlexibleBackup backup.o config.o scan.o shared.o
 
 clean:
