@@ -2,6 +2,7 @@
   * Created by Caitlyn Briggs on 16/05/2025
   **/
 
+#include <csignal>
 #include "grp.h"
 #include <pwd.h>
 #include <unistd.h>
@@ -138,9 +139,9 @@ bool scan(const size_t depth, const path& entry){
 
 bool isSubPath(const path& root, const path& entry){
 	//iterators
-	auto i_root = root.begin(), i_entry = entry.begin();
+	path::iterator i_root = root.begin(), i_entry = entry.begin();
 	//stop values
-	const auto s_root = root.end(), s_entry = entry.end();
+	const path::iterator s_root = root.end(), s_entry = entry.end();
 
 	while (i_root != s_root && i_entry != s_entry){
 		if (*i_root++ != *i_entry++){return false;}
@@ -154,6 +155,9 @@ uint64_t getSize(const path& root){
 	if (!is_directory(root)){return file_size(root);}
 
 	uint64_t ret = 0;
-	for (const path& entry : directory_iterator(root)){ret += getSize(entry);}
+	for (const path& entry : directory_iterator(root)){
+		if (ret > maxSize){return ret;}
+		ret += getSize(entry);
+	}
 	return ret;
 }
