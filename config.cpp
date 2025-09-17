@@ -3,12 +3,11 @@
   **/
 
 #include <algorithm>
+#include <array>
 #include <fstream>
 
 #include "config.h"
 #include "shared.h"
-
-using std::array;
 
 enum{
 	tar, gzip, bzip2, xz
@@ -65,11 +64,12 @@ void vectorPushBack(const string& word, vector<path>& vec, const char c){
 
 /**
   * Returns information about compression value
+  * @post returned array must be deallocated after function call
   * @return [0] is compression level denoted by -#, --best, or --fast, UINT8_MAX if no level is found
   * @return [1] is non-zero if -#e, -e, or --extreme are detected
   **/
-array<uint8_t, 2> getCompressionValue(string& word){
-	array<uint8_t, 2> ret = {UINT8_MAX, false};
+uint8_t* getCompressionValue(string& word){
+	auto* ret = new uint8_t[2]{UINT8_MAX, false};
 
 	if (word.front() == '"'){word = word.substr(1);}
 	if (word.back() == '"'){
@@ -103,25 +103,25 @@ array<uint8_t, 2> getCompressionValue(string& word){
   * @param call is env variable without leading $ (HOME instead of $HOME)
   * @param bucket container of env calls and their results
   **/
-string getEnv(const string& call, vector<array<string, 2>>& bucket){
-	enum{srs, ret}; //source, return
+string getEnv(const string& call, vector<string*>& bucket){
+	enum{var, ret}; //source, return
 
-	for (const array<string, 2>& a : bucket){
-		if (a.at(srs) == call){return a.at(ret);}
+	for (const string* str : bucket){
+		if (str[var] == call){return str[ret];}
 	}
 
-	bucket.push_back({call, getenv(call.c_str())});
+	string env[2] = {call, getenv(call.c_str())};
+	bucket.push_back(env);
 
-	return bucket.back().at(ret);
+	return bucket.back()[ret];
 }
 
 void getMaxSize(string& word){
 	//abbreviations
-	const array<char, 4> a = {'K', 'M', 'G', 'B'};
+	const char a[4] = {'K', 'M', 'G', 'B'};
 	//multipliers
-	const array<uint64_t, 4> m = {
-			((uint64_t)1 << 10), ((uint64_t)1 << 20),
-			((uint64_t)1 << 30), ((uint64_t)1 << 40)
+	const uint64_t m[4] = {((uint64_t)1 << 10), ((uint64_t)1 << 20),
+						   ((uint64_t)1 << 30), ((uint64_t)1 << 40)
 	};
 
 	if (word.length() < 2 || !std::all_of(word.end() - 2, word.end(), isalpha)){
@@ -140,12 +140,12 @@ void getMaxSize(string& word){
 	}
 
 	for (uint8_t idx = 0; idx < 4; ++idx){
-		if (*(word.end() - 2) != a.at(idx)){continue;}
+		if (*(word.end() - 2) != a[idx]){continue;}
 
-		maxSize = wordInt * m.at(idx);
+		maxSize = wordInt * m[idx];
 
 		//check for overflow
-		if (maxSize < wordInt || maxSize < m.at(idx)){
+		if (maxSize < wordInt || maxSize < m[idx]){
 			word.push_back('\"');
 			error("MaxSize multiplier causes overflow \"",word.c_str(), UINT8_MAX);
 		}
@@ -159,9 +159,9 @@ void getMaxSize(string& word){
 
 /**
   * ReadConfig() helper function, parses line and assigns them to shared.cpp values
-  * @param bucket arrays are formatted as {env variable, returned value}
+  * @param bucket string* is formatted as {env variable, returned value}
   **/
-void ReadLine(string& line, vector<array<string, 2>>& bucket, uint8_t& comType){
+void ReadLine(string& line, vector<string*>& bucket, uint8_t& comType){
 	if (line.empty() || line.at(0) == '#') return;
 
 	string word;
@@ -232,19 +232,22 @@ void ReadLine(string& line, vector<array<string, 2>>& bucket, uint8_t& comType){
 			switch(line.at(11)){
 				//comArgs
 				case 'L':{
-					array<uint8_t, 2> arr = getCompressionValue(word);
+					uint8_t* arr = getCompressionValue(word);
 
 					if (arr[0] == UINT8_MAX){genericError(line);}
 
 					//if (arr[0] is 0 or arr[1] is non-zero) and (comType is not xz)
 					//allow for empty comType in case comType line is yet to come
 					if ((arr[0] == 0 || arr[1]) && comType != 3){
-						error("invalid CompressionLevel with CompressionType", "", arr[0]);
+						delete arr;
+						error("invalid CompressionLevel with CompressionType", "");
+						exit(1); //unnecessary since error will exit but silences IDE warnings
 					}
 
 					comArgs = "-" + std::to_string(arr[0]);
 					if (arr[1]){comArgs += " --extreme";}
 
+					delete arr;
 					break;
 				}
 
@@ -278,11 +281,13 @@ void ReadConfig(){
 		ifs.open(config);
 		if (!ifs.is_open()) error("cannot read config");
 
-		vector<array<string, 2>> bucket{{"HOME", home.string()}};
+		string homeInfo[2] = {"HOME", home.string()};
+		vector<string*> bucket{homeInfo};
 
 		for (string line; getline(ifs, line);){
 			ReadLine(line, bucket, comType);
 		}
+		for (string* i : bucket){delete i;}
 	}
 
 	//fix empty comArgs and empty maxSize
@@ -420,7 +425,7 @@ void outputHelp(){
 			"Options:",
 	};
 	const uint8_t l_body = 26; //largest body string
-	const vector<array<string, 2>> body = {
+	const vector<vector<string>> body = {
 			{"-c, --config=PATH", "Load config information from PATH"},
 			{"-h, --help", "Display this message"},
 			{"-r PATH, --root=PATH", "Set BackupRootDir to PATH"},
@@ -435,12 +440,12 @@ void outputHelp(){
 	};
 
 	for (const string& i : header){std::cout << i << std::endl;}
-	for (const array<string, 2>& arr : body){
-		std::cout << "  " << std::setw(l_body) << std::left << arr.at(0) << "  " << arr.at(1) << std::endl;
+	for (const auto& i : body){
+		std::cout << "  " << std::setw(l_body) << std::left << i[0] << "  " << i[1] << std::endl;
 	}
 }
 
-bool GetArgsHelper(const string& arg, const array<array<string, 9>, 2>& options){
+bool GetArgsHelper(const string& arg, const string options[2][9]){
 	bool multiChar;
 	if (arg.size() < 2){return false;}
 
@@ -520,7 +525,7 @@ bool GetArgsHelper(const string& arg, const array<array<string, 9>, 2>& options)
 }
 
 void GetArgs(const int argc, char* argv[]){
-	const array<array<string, 9>, 2> options = {
+	const string options[2][9] = {
 			"c", "h", "r",
 			"o", "", "B",
 			"W", "S", "C",

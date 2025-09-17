@@ -4,14 +4,12 @@
 #ifndef FLEXIBLEBACKUP_SHARED_H
 #define FLEXIBLEBACKUP_SHARED_H
 
-#include <array>
-#include <csignal>
 #include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
 
-using namespace std::filesystem;
+using std::filesystem::path;
 using std::string;
 using std::vector;
 

@@ -27,6 +27,9 @@ bool isRealPath(const path& p, bool symlink){
 }
 
 bool checkPerm(const path& p, const char rwx){
+	using std::filesystem::file_status;
+	using std::filesystem::perms;
+
 	const file_status s = status(p);
 
 	uid_t e_uid; //p uid
@@ -39,19 +42,25 @@ bool checkPerm(const path& p, const char rwx){
 	}
 
 	//user, group, other
-	std::array<perms, 3> perm{perms::none, perms::none, perms::none};
+	perms perm[3] = {perms::none, perms::none, perms::none};
 	
 	switch (rwx){
 		case 'r':{
-			perm = {perms::owner_read, perms::group_read, perms::others_read};
+			perm[0] = perms::owner_read;
+			perm[1] = perms::group_read;
+			perm[2] = perms::others_read;
 			break;
 		}
 		case 'w':{
-			perm = {perms::owner_write, perms::group_write, perms::others_write};
+			perm[0] = perms::owner_write;
+			perm[1] = perms::group_write;
+			perm[2] = perms::others_write;
 			break;
 		}
 		case 'x':{
-			perm = {perms::owner_exec, perms::group_exec, perms::others_exec,};
+			perm[0] = perms::owner_exec;
+			perm[1] = perms::group_exec;
+			perm[2] = perms::others_exec;
 			break;
 		}
 		default:{

@@ -58,7 +58,7 @@ bool removeArchive(path archive){
 		const path tar = ".tar";
 		const path a_stem = getStem(archive, tar, ext);
 
-		for (const path& i : directory_iterator(archive.parent_path())){
+		for (const path& i : std::filesystem::directory_iterator(archive.parent_path())){
 			if (!i.has_stem() || !i.has_extension()){continue;}
 
 			const path i_stem = getStem(i, tar, ext);

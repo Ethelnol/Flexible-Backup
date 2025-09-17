@@ -11,13 +11,13 @@
 bool OpenConfig();
 
 /**
-  * Reads config file and populates arr1 and arr2 with results
+  * Reads data from config
   **/
 void ReadConfig();
 
 /**
-  * Writes example config to loc
-  */
+  * Writes default conf to config
+  **/
 void WriteConfig();
 
 /**

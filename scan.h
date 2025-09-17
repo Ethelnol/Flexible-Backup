@@ -11,8 +11,6 @@ using namespace std::filesystem;
 /**
   * Gets list of paths under dir and passes path to scan
   * @param depth number of directories recursed from conf[bacRoot]
-  * @param conf array of config info, see shared.h
-  * @param lists blacklist, whitelist, and required scan paths
   * @return true if any path under dir was backed up
   **/
 bool plunge(size_t depth, const path& dir);
