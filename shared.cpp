@@ -26,7 +26,7 @@ bool isRealPath(const path& p, bool symlink){
 	return true;
 }
 
-bool checkPerm(const path& p, const char rwx){
+bool checkPerm(const path& p, char rwx){
 	using std::filesystem::file_status;
 	using std::filesystem::perms;
 
@@ -83,9 +83,7 @@ bool checkPerm(const path& p, const char rwx){
 	}
 
 	//check for others' permissions
-	if ((s.permissions() & perm[2]) != perms::none){return true;}
-
-	return false;
+	return (s.permissions() & perm[2]) != perms::none;
 }
 
 void sig_handler(int signal){
@@ -104,24 +102,19 @@ void sig_handler(int signal, path* i_arch){
 	exit(signal);
 }
 
-void error(const string& error, const string& detail, const uint8_t code){
+void error(const string& error, const string& detail, uint8_t code){
 	::error(error.c_str(), detail.c_str(), code);
 }
 
-void error(const char* error, const string& detail, const uint8_t code){
+void error(const char* error, const string& detail, uint8_t code){
 	::error(error, detail.c_str(), code);
 }
 
-void error(const string& error, const char* detail, const uint8_t code){
+void error(const string& error, const char* detail, uint8_t code){
 	::error(error.c_str(), detail, code);
 }
 
-void error(const char* error, const char* detail, const uint8_t code){
-	std::cerr << "Error: " << error;
-
-	if (detail) std::cerr << detail;
-
-	std::cerr << std::endl;
-
+void error(const char* error, const char* detail, uint8_t code){
+	std::cerr << "Error: " << error << detail << std::endl;
 	exit(code);
 }

@@ -5,19 +5,12 @@
 #include <csignal>
 #include "grp.h"
 #include <pwd.h>
-#include <unistd.h>
 
 #include "backup.h"
 #include "config.h"
+#include "out.h"
 #include "scan.h"
 #include "shared.h"
-
-#define tab(d) (4 * d) //outputs tab for cout
-#define out(m) (std::cout << string(tab(depth), ' ') \
-                          << std::setw(17) << std::right \
-						  << m << " : " << entry.filename() \
-						  << std::flush)
-#define full(d, e) (tab(d) + 22 + e.string().length()) //setw(17) + " : " + '\"' + e.length() + '\"'
 
 int main(int argc, char* argv[]){
 	signal(SIGINT, sig_handler);
@@ -47,6 +40,8 @@ int main(int argc, char* argv[]){
 		error("backup directory is not writable", bacDir);
 	}
 
+	log_init();
+
 	//predefined whitelisted directories
 	if (!whitelist.empty()){
 		bool ret;
@@ -75,17 +70,13 @@ bool plunge(const size_t depth, const path& dir){
   * scan helper function, handles backup text output and returns backup value
   **/
 bool startBackup(const size_t depth, const path& entry){
-	using std::cout;
-
-	const size_t backNum = full(depth, entry);
-
-	cout << string(backNum, '\b');
-	out("Backing up");
-	cout << string(backNum, '\b');
+	Backing(depth, entry);
 
 	bool ret = backup(entry);
-	out(((ret) ? "Backed up" : "Already backed up"));
-	cout << std::endl;
+
+	if (ret){Backed(depth, entry);}
+	else{A_Backed(depth, entry);}
+
 	return ret;
 }
 
@@ -109,28 +100,23 @@ bool vecSearch(const path& p, const vector<path>& vec, const bool invert){
 }
 
 bool scan(const size_t depth, const path& entry){
-	using std::cout;
-
-	out("Scanning");
+	Scanning(depth, entry);
 
 	if (!isRealPath(entry) || !checkPerm(entry, 'r') ||
 	    vecSearch(entry, blacklist, false)){
-		cout << string(((full(depth, entry))), '\b');
-		out("Skipping");
-		cout << std::endl;
+		Skipping(depth, entry);
 		return false;
 	}
 
-	if (!is_directory(entry) || vecSearch(entry, collective, false))
+	if (!is_directory(entry) || vecSearch(entry, collective, false)){
 		return startBackup(depth, entry);
+	}
 
 	//has blacklisted or split subentry
 	if (vecSearch(entry, blacklist, true) ||
 	    vecSearch(entry, split, true) ||
 	    getSize(entry) > maxSize){
-		cout << string((full(depth, entry)), '\b');
-		out("Scanning deeper");
-		cout << std::endl << std::endl;
+		Deeper(depth, entry);
 		return plunge(depth + 1, entry);
 	}
 

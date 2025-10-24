@@ -4,6 +4,7 @@
 #ifndef FLEXIBLEBACKUP_SHARED_H
 #define FLEXIBLEBACKUP_SHARED_H
 
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <string>

@@ -3,15 +3,10 @@
   **/
 
 #include <algorithm>
-#include <array>
 #include <fstream>
 
 #include "config.h"
 #include "shared.h"
-
-enum{
-	tar, gzip, bzip2, xz
-};
 
 bool OpenConfig(){
 	if (!is_regular_file(config)){
@@ -110,8 +105,7 @@ string getEnv(const string& call, vector<string*>& bucket){
 		if (str[var] == call){return str[ret];}
 	}
 
-	string env[2] = {call, getenv(call.c_str())};
-	bucket.push_back(env);
+	bucket.push_back(new string[2]{call, getenv(call.c_str())});
 
 	return bucket.back()[ret];
 }
@@ -274,6 +268,10 @@ void ReadLine(string& line, vector<string*>& bucket, uint8_t& comType){
 }
 
 void ReadConfig(){
+	enum compression{
+		tar, gzip, bzip2, xz
+	};
+
 	//main read process
 	uint8_t comType; //id for compression type
 	{
@@ -281,13 +279,12 @@ void ReadConfig(){
 		ifs.open(config);
 		if (!ifs.is_open()) error("cannot read config");
 
-		string homeInfo[2] = {"HOME", home.string()};
-		vector<string*> bucket{homeInfo};
+		vector<string*> bucket{new string[2]{"HOME", home.string()}};
 
 		for (string line; getline(ifs, line);){
 			ReadLine(line, bucket, comType);
 		}
-		for (string* i : bucket){delete i;}
+		for (string* i : bucket){delete[] i;}
 	}
 
 	//fix empty comArgs and empty maxSize
@@ -416,42 +413,39 @@ void WriteConfig(){
 
 //help text
 void outputHelp(){
-	enum{arg, txt};
+	/* One line help
+	std::cout << "Flexible-Backup\nBackup files using tar and a chosen compressor\n\nOptions:\n  -c, --config=PATH           Load config information from PATH\n  -h, --help                  Display this message\n  -r PATH, --root=PATH        Set BackupRootDir to PATH\n  -o PATH, --output=PATH      Set OutputLocation to PATH\n  --maxSize=NB                Set max size a directory can be where N is a number and B is KB to TB\n  -B PATH, --blacklist=PATH   Add PATH to blacklist\n  -W PATH, --whitelist=PATH   Add PATH to Whitelist\n  -S PATH, --splitlist=PATH   Add PATH to SplitBackup\n  -C PATH, --collective=PATH  Add PATH to CollectiveBackup"
+	          << std::endl;
+	*/
 
-	const vector<string> header = {
-			"Flexible-Backup",
-			"Backup files using tar and a chosen compressor",
-			"",
-			"Options:",
-	};
-	const uint8_t l_body = 26; //largest body string
-	const vector<vector<string>> body = {
-			{"-c, --config=PATH", "Load config information from PATH"},
-			{"-h, --help", "Display this message"},
-			{"-r PATH, --root=PATH", "Set BackupRootDir to PATH"},
-			{"-o PATH, --output=PATH", "Set OutputLocation to PATH"},
-			{"--maxSize=NB", "Set max size a directory can be where N is a number and B is KB to TB"},
-			{"-B PATH, --blacklist=PATH", "Add PATH to blacklist"},
-			{"-W PATH, --whitelist=PATH", "Add PATH to Whitelist"},
-			{"-S PATH, --splitlist=PATH", "Add PATH to SplitBackup"},
-			{"-C PATH, --collective=PATH", "Add PATH to CollectiveBackup"},
-			//{"--compressLevel=N", "Set CompressionLevel to N"},
-			//{"--compressType=N", "Set CompressionType to N"}
+	std::cout << "FlexibleBackup\nBackup files using tar and a chosen compressor\n\nOptions:" << std::endl;
+
+	const vector<string> body = {
+			"  -c, --config=PATH", "Load config information from PATH",
+			"  -h, --help", "Display this message",
+			"  -r PATH, --root=PATH", "Set BackupRootDir to PATH",
+			"  -o PATH, --output=PATH", "Set OutputLocation to PATH",
+			"  --maxSize=NB", "Set max size a directory can be where N is a number and B is KB to TB",
+			"  -B PATH, --blacklist=PATH", "Add PATH to blacklist",
+			"  -W PATH, --whitelist=PATH", "Add PATH to Whitelist",
+			"  -S PATH, --splitlist=PATH", "Add PATH to SplitBackup",
+			"  -C PATH, --collective=PATH", "Add PATH to CollectiveBackup"
+			//"  --compressLevel=N", "Set CompressionLevel to N",
+			//"  --compressType=N", "Set CompressionType to N"
 	};
 
-	for (const string& i : header){std::cout << i << std::endl;}
-	for (const auto& i : body){
-		std::cout << "  " << std::setw(l_body) << std::left << i[0] << "  " << i[1] << std::endl;
+	for (uint32_t i = 0; i < body.size(); i = i + 2){
+		std::cout << std::setw(30) << std::left
+		          << body.at(i) << body.at(i + 1) << std::endl;
 	}
 }
 
 bool GetArgsHelper(const string& arg, const string options[2][9]){
-	bool multiChar;
 	if (arg.size() < 2){return false;}
 
 	if (arg.at(0) != '-'){return false;}
 
-	uint8_t i = 0;
+	bool multiChar;
 	string argRoot, o;
 
 	//single character format (-h)
@@ -470,6 +464,7 @@ bool GetArgsHelper(const string& arg, const string options[2][9]){
 
 	if (o.empty()){return false;}
 
+	uint8_t i = 0;
 	for (; i < 11; i++){
 		if (options[multiChar][i] == argRoot){break;}
 	}
