@@ -5,6 +5,7 @@
 #include <csignal>
 #include "grp.h"
 #include <pwd.h>
+#include <queue>
 
 #include "backup.h"
 #include "config.h"
@@ -35,7 +36,7 @@ int main(int argc, char* argv[]){
 
 	if (!OpenConfig()){return 1;}
 
-	if (!isRealPath(bacDir)){create_directories(bacDir);}
+	if (!exists(bacDir)){create_directories(bacDir);}
 	if (!checkPerm(bacDir, 'w')){
 		error("backup directory is not writable", bacDir);
 	}
@@ -140,10 +141,18 @@ uint64_t getSize(const path& root){
 	if (!isRealPath(root) || !checkPerm(root, 'r')){return 0;}
 	if (!is_directory(root)){return file_size(root);}
 
+	std::queue<path> q;
+	q.push(root);
+
 	uint64_t ret = 0;
-	for (const path& entry : directory_iterator(root)){
-		if (ret > maxSize){return ret;}
-		ret += getSize(entry);
+	while (!q.empty()){
+		for (const path& i : directory_iterator(q.front())){
+			if (!isRealPath(i) || !checkPerm(i, 'r')){continue;}
+			if (is_directory(i)){q.push(i);}
+			else{ret = ret + file_size(i);}
+		}
+		q.pop();
 	}
+
 	return ret;
 }

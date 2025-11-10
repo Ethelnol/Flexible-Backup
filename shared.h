@@ -23,10 +23,8 @@ extern vector<path> whitelist, blacklist, split, collective;
 
 /**
   * Check if p is a real path that is a directory or file
-  * @param symlink allow for p to be a symlink
-  * @return
   **/
-bool isRealPath(const path& p, bool symlink = false);
+bool isRealPath(const path& p, bool allow_symlink = false);
 
 bool checkPerm(const path& p, char rwx);
 

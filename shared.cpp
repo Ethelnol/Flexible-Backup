@@ -17,50 +17,39 @@ path bacDir; //directory of archives
 vector<gid_t> groups; //user groups
 vector<path> whitelist, blacklist, split, collective;
 
-bool isRealPath(const path& p, bool symlink){
-	if (p.empty()) return false;
-	if (!exists(p)) return false;
-	if (is_other(p)) return false;
-	if (!symlink && is_symlink(p)) return false;
+bool isRealPath(const path& p, bool allow_symlink){
+	if (!allow_symlink && is_symlink(p)){return false;}
 
-	return true;
+	return !is_other(p);
 }
 
 bool checkPerm(const path& p, char rwx){
-	using std::filesystem::file_status;
 	using std::filesystem::perms;
 
-	const file_status s = status(p);
+	const perms p_perms = status(p).permissions();
+	if (p_perms == perms::unknown){return false;}
 
-	uid_t e_uid; //p uid
-	gid_t e_gid; //p gid
-	{
-		struct stat fileStat{};
-		stat(p.c_str(), &fileStat);
-		e_uid = fileStat.st_uid;
-		e_gid = fileStat.st_gid;
-	}
-
-	//user, group, other
-	perms perm[3] = {perms::none, perms::none, perms::none};
-	
+	perms check_perms;
 	switch (rwx){
 		case 'r':{
-			perm[0] = perms::owner_read;
-			perm[1] = perms::group_read;
-			perm[2] = perms::others_read;
+			//0x124
+			//444
+			//100 100 100
+			check_perms = perms::owner_read | perms::group_read | perms::others_read;
 			break;
 		}
 		case 'w':{
-			perm[0] = perms::owner_write;
-			perm[1] = perms::group_write;
-			perm[2] = perms::others_write;
+			//0x812
+			//222
+			//010 010 010
+			check_perms = perms::owner_write | perms::group_write | perms::others_write;
 			break;
 		}
 		case 'x':{
-			perm[0] = perms::owner_exec;
-			perm[1] = perms::group_exec;
-			perm[2] = perms::others_exec;
+			//0x49
+			//111
+			//001 001 001
+			check_perms = perms::owner_exec | perms::group_exec | perms::others_exec;
 			break;
 		}
 		default:{
@@ -70,31 +59,35 @@ bool checkPerm(const path& p, char rwx){
 		}
 	}
 
+	struct stat p_stats{};
+	stat(p.c_str(), &p_stats);
+
 	//check for owner permissions
-	if (e_uid == u_uid){
-		return (s.permissions() & perm[0]) != perms::none;
+	if (p_stats.st_uid == u_uid){
+		return (p_perms & perms::owner_all & check_perms) != perms::none;
 	}
 
 	//check for group permissions for all user groups
 	for (gid_t u_gid : groups){
-		if (e_gid == u_gid){
-			return (s.permissions() & perm[1]) != perms::none;
+		if (p_stats.st_gid == u_gid){
+			return (p_perms & perms::group_all & check_perms) != perms::none;
 		}
 	}
 
 	//check for others' permissions
-	return (s.permissions() & perm[2]) != perms::none;
+	return (p_perms & perms::others_all & check_perms) != perms::none;
 }
 
 void sig_handler(int signal){
-	sig_handler(signal, nullptr);
+	std::cerr << "\n\nStopping backup." << std::endl;
+	exit(signal);
 }
 
 void sig_handler(int signal, path* i_arch){
 	using std::cerr, std::endl;
-	cerr << endl << endl << "Stopping backup." << endl;
+	cerr << "\n\nStopping backup." << endl;
 
-	if (i_arch && isRealPath(*i_arch)){
+	if (i_arch && exists(*i_arch)){
 		cerr << "Archive incomplete, removing: " << i_arch->filename() << '.' << endl;
 		remove(*i_arch);
 	}

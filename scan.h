@@ -29,9 +29,9 @@ bool scan(size_t depth, const path& entry);
 bool isSubPath(const path& root, const path& entry);
 
 /**
-  * Returns size in bytes of root recursively
+  * Returns size in bytes of root iteratively
   * @pre root is a real path
-  * @return 0 if path is not readable
+  * @return 0 if root is not readable
   **/
 uint64_t getSize(const path& root);
 
