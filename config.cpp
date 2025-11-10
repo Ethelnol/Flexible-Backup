@@ -13,7 +13,7 @@ bool OpenConfig(){
 		error("config path is invalid \"", (config.string() + '"'));
 	}
 	
-	if (!isRealPath(config)){
+	if (!exists(config)){
 		WriteConfig();
 		return false;
 	}
@@ -346,7 +346,7 @@ void ReadConfig(){
 				break;
 			}
 		}
-		if (!hasDir){blacklist.emplace_back(bacDir);}
+		if (!hasDir){blacklist.push_back(bacDir);}
 	}
 
 	//validate that all path vectors contain valid paths and shrink to reduce memory

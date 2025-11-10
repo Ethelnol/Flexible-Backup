@@ -15,10 +15,13 @@ bool backup(const path& entry){
 	archive += entry;
 	archive += conExt;
 
-	if (!isRealPath(archive.parent_path()))
+	if (!exists(archive.parent_path())){
 		create_directories(archive.parent_path());
+	}
 
-	if (isRealPath(archive) && last_write_time(entry) <= last_write_time(archive)){return false;}
+	if (exists(archive) && last_write_time(entry) <= last_write_time(archive)){
+		return false;
+	}
 
 	removeArchive(archive);
 
@@ -26,14 +29,12 @@ bool backup(const path& entry){
 	                  entry.parent_path().string() + "\" --create --file - \"" +
 	                  entry.filename().string() +
 	                  "\"";
-	if (!comArgs.empty()){
-		cmd += " | " + comArgs;
-	}
+	if (!comArgs.empty()){cmd += " | " + comArgs;}
 
 	cmd += " > \"" + archive.string() + '\"';
 
-	uint8_t ret = system(cmd.c_str());
-	if (ret) sig_handler(ret, &archive);
+	auto ret = system(cmd.c_str());
+	if (ret){sig_handler(ret, &archive);}
 
 	return true;
 }

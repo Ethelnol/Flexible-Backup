@@ -24,19 +24,16 @@ void log_init(){
 
 /**
   * Returns "msg : \"p\"" to be output to log file
-  * @pre msg_len is less than 18, largest msg is "Already backed up"
+  * @pre msg_len is less than 18, msg with largest length is "Already backed up"
   **/
 char* message(const char* msg, uint8_t msg_len, const path& p){
 	if (!msg || msg_len > 17){return nullptr;}
 
-	uint8_t msg_buffer = 17;
+	auto msg_buffer = 17;
+	const auto ret_len = p.string().length() + 23; //length of p, msg_buffer, 2 spaces, colon, 2 quotes, and NUL
 
-	//length of p, msg_buffer, 2 spaces, colon, 2 quotes, and NUL
-	const uint32_t ret_len = p.string().length() + 23;
-	char* ret = new char[ret_len];
-
-	//uniform chars
-	std::fill_n(ret, msg_buffer - msg_len, ' ');
+	auto ret = new char[ret_len];
+	for (auto i = 0; i < 17 - msg_len; ++i){ret[i] = ' ';}
 	ret[17] = ' ';
 	ret[18] = ':';
 	ret[19] = ' ';
@@ -45,19 +42,17 @@ char* message(const char* msg, uint8_t msg_len, const path& p){
 	ret[ret_len - 1] = '\0';
 
 	//fill ret with msg
-	while (msg_len){
-		ret[--msg_buffer] = msg[--msg_len];
-	}
+	while (msg_len){ret[--msg_buffer] = msg[--msg_len];}
 
-	//fill ret with p
 	msg_buffer = 21;
-	for (char c : p.string()){
-		ret[msg_buffer++] = c;
-	}
+	for (auto c : p.string()){ret[msg_buffer++] = c;}
 
 	return ret;
 }
 
+/**
+  * Sends len instances of c to out
+ **/
 void outChars(std::basic_ostream<char>& out, uint32_t len, char c){
 	char ret[len + 1];
 	std::fill_n(ret, len, c);
@@ -71,7 +66,7 @@ void outChars(std::basic_ostream<char>& out, uint32_t len, char c){
   * @param msg_len number of chars in msg such that msg has range of [0, msg_len - 1]
   * @param step [0] for scanning, [1] for skipping/scanning deeper, [2] for backing up, [3] for (already) backed up
   **/
-void out(uint32_t depth, const char* msg, uint8_t msg_len, const path& p, STATUS step){
+void out(const uint32_t depth, const char* msg, const uint8_t msg_len, const path& p, const STATUS step){
 	//stdout tabs or backspace
 	if (step == scanning){
 		outChars(std::cout, depth * TAB, ' ');
