@@ -26,6 +26,10 @@ extern vector<path> whitelist, blacklist, split, collective;
   **/
 bool isRealPath(const path& p, bool allow_symlink = false);
 
+/**
+  * Check if a path p has permission to read, write, or execute
+  * @return true if p has the requested permission
+  **/
 bool checkPerm(const path& p, char rwx);
 
 /**
@@ -39,7 +43,7 @@ void sig_handler(int signal);
   * @param signal signal to exit with
   * @param i_arch incomplete archive path
   **/
-void sig_handler(int signal, path* i_arch);
+void sig_handler(int signal, const path* i_arch);
 
 /**
   * Output "Error: (error)(detail)" and exits with code

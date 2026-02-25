@@ -1,4 +1,4 @@
-/** 
+/**
   * Created by Caitlyn Briggs on 16/05/2025
   **/
 #ifndef FLEXIBLEBACKUP_BACKUP_H
@@ -14,11 +14,5 @@
   * @return false if newer archive exists (already backed up)
   **/
 bool backup(const std::filesystem::path& entry);
-
-/**
-  * Check for and remove other archives that would contain archive's files
-  * @return true if any archive was removed
-  **/
-bool removeArchive(std::filesystem::path archive);
 
 #endif //FLEXIBLEBACKUP_BACKUP_H

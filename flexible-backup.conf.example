@@ -1,3 +1,5 @@
+#Shell ENV variables are allowed ($HOME, $USER, etc)
+
 #The directory considered the root of the backup
 #If unknown, leave as '/'
 BackupRootDir=/
