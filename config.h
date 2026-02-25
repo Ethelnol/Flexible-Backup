@@ -25,6 +25,6 @@ void WriteConfig();
   * @param argc number of arguments
   * @param argv arguments
   **/
-void GetArgs(int argc, char* argv[]);
+void GetArgs(int argc, const char* argv[]);
 
 #endif //FLEXIBLEBACKUP_CONFIG_H

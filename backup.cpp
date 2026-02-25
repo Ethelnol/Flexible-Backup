@@ -10,6 +10,37 @@
 //hash table for paths already checked for removal by removeArchive()
 std::unordered_map<size_t, path> remove_table;
 
+/**
+  * Check for and remove other archives that would contain archive's files
+  * @return true if any archive was removed or previously remove
+  **/
+bool removeArchive(path archive){
+	const path stopDir = bacDir.string() + conExt.string();
+
+	while (archive != stopDir){
+		const size_t a_hash = hash_value(archive);
+		const auto rmv_path = remove_table.find(a_hash);
+
+		//archive has already been removed
+		if (rmv_path != remove_table.end()){return true;}
+
+		std::error_code err;
+		if (!remove(archive, err)){
+			archive = archive.parent_path();
+			archive += conExt;
+			continue;
+		}
+		if (err){
+			error("could not remove archive \"", archive.string() + '\"');
+		}
+
+		remove_table.emplace(a_hash, archive);
+		return true;
+	}
+
+	return false;
+}
+
 bool backup(const path& entry){
 	path archive = bacDir;
 	archive += entry;
@@ -25,61 +56,16 @@ bool backup(const path& entry){
 
 	removeArchive(archive);
 
-	std::string cmd = "sudo tar --absolute-names --directory=\"" +
-	                  entry.parent_path().string() + "\" --create --file - \"" +
-	                  entry.filename().string() +
-	                  "\"";
+	//set directory to parent path so archived paths are relative to entry
+	std::string cmd = "sudo tar --absolute-names --directory=\'" +
+					  entry.parent_path().string() + "\' --create --file - \'" +
+					  entry.filename().string() + "\'";
 	if (!comArgs.empty()){cmd += " | " + comArgs;}
 
-	cmd += " > \"" + archive.string() + '\"';
+	cmd += " > \'" + archive.string() + '\'';
 
-	auto ret = system(cmd.c_str());
+	const auto ret = system(cmd.c_str());
 	if (ret){sig_handler(ret, &archive);}
 
 	return true;
-}
-
-/**
-  * Returns p without extensions after stopper or first stem of p if stopper isn't in p
-  * @param ext populated with first extension after stem, stopper if stopper is present
-  * @example removeArchive("/path/to/file.txt.tar.xz", ".tar") returns "file.txt" and ".tar"
-  * @example removeArchive("/file.txt.tar.xz", ".mp4") returns "file" and ".txt"
-  **/
-path getStem(path p, const path& stopper, path& ext){
-	while (p.stem().has_extension() && p.extension() != stopper){p = p.stem();}
-	ext = p.extension();
-	return p.stem();
-}
-
-bool removeArchive(path archive){
-	bool ret = false;
-
-	while (archive != bacDir){
-		path ext;
-		const path tar = ".tar";
-		const path a_stem = getStem(archive, tar, ext);
-
-		for (const path& i : std::filesystem::directory_iterator(archive.parent_path())){
-			if (!i.has_stem() || !i.has_extension()){continue;}
-
-			const path i_stem = getStem(i, tar, ext);
-
-			if (ext != tar || a_stem != i_stem){continue;}
-
-			size_t i_hash = hash_value(i);
-			if (remove_table.find(i_hash) != remove_table.end()){continue;}
-
-			remove_table.insert({i_hash, i});
-
-			if (remove_all(i) == UINTMAX_MAX){
-				error("could not remove outdated archive, ", i.c_str());
-			}
-
-			ret = true;
-		}
-
-		archive = archive.parent_path();
-	}
-
-	return ret;
 }
