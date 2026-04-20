@@ -65,7 +65,8 @@ bool backup(const path& entry){
 	cmd += " > \'" + archive.string() + '\'';
 
 	const auto ret = system(cmd.c_str());
-	if (ret){sig_handler(ret, &archive);}
+//	if (ret){sig_handler(ret, &archive);}
+	if (ret){sig_handler(ret);}
 
 	return true;
 }

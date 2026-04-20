@@ -13,7 +13,7 @@
 #include "scan.h"
 #include "shared.h"
 
-int main(int argc, char* argv[]){
+int main(const int argc, const char* argv[]){
 	signal(SIGINT, sig_handler);
 
 	//set uid and gid information

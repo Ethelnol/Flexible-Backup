@@ -519,7 +519,7 @@ bool GetArgsHelper(const string& arg, const string options[2][9]){
 	return true;
 }
 
-void GetArgs(const int argc, char* argv[]){
+void GetArgs(const int argc, const char* argv[]){
 	const string options[2][9] = {
 			"c", "h", "r",
 			"o", "", "B",

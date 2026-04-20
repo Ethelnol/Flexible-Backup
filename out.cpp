@@ -8,7 +8,7 @@
 #include "out.h"
 #include "shared.h"
 
-const uint8_t TAB = 4; //num spaces for tab
+constexpr uint8_t TAB = 4; //num spaces for tab
 std::ofstream ofs;
 
 enum STATUS{
@@ -52,7 +52,7 @@ char* message(const char* msg, uint8_t msg_len, const path& p){
 
 /**
   * Sends len instances of c to out
- **/
+  **/
 void outChars(std::basic_ostream<char>& out, uint32_t len, char c){
 	char ret[len + 1];
 	std::fill_n(ret, len, c);
@@ -90,25 +90,25 @@ void out(const uint32_t depth, const char* msg, const uint8_t msg_len, const pat
 }
 
 void Scanning(uint32_t depth, const path& p){
-	out(depth, "Scanning", 8, p, scanning);
+	out(depth, "Scanning", 8, p.filename(), scanning);
 }
 
 void Backing(uint32_t depth, const path& p){
-	out(depth, "Backing up", 10, p, backing);
+	out(depth, "Backing up", 10, p.filename(), backing);
 }
 
 void Backed(uint32_t depth, const path& p){
-	out(depth, "Backed up", 9, p, archived);
+	out(depth, "Backed up", 9, p.filename(), archived);
 }
 
 void A_Backed(uint32_t depth, const path& p){
-	out(depth, "Already backed up", 17, p, archived);
+	out(depth, "Already backed up", 17, p.filename(), archived);
 }
 
 void Skipping(uint32_t depth, const path& p){
-	out(depth, "Skipping", 8, p, ended);
+	out(depth, "Skipping", 8, p.filename(), ended);
 }
 
 void Deeper(uint32_t depth, const path& p){
-	out(depth, "Scanning deeper", 15, p, ended);
+	out(depth, "Scanning deeper", 15, p.filename(), ended);
 }
