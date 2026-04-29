@@ -45,8 +45,8 @@ int main(const int argc, const char* argv[]){
 
 	//predefined whitelisted directories
 	if (!whitelist.empty()){
-		bool ret;
-		for (const path& entry : (whitelist)){
+		bool ret = false;
+		for (const path& entry : whitelist){
 			if (scan(0, entry)){ret = true;}
 		}
 		return ret;
@@ -58,7 +58,7 @@ int main(const int argc, const char* argv[]){
 bool plunge(const size_t depth, const path& dir){
 	bool ret = false;
 
-	for (const path& entry : directory_iterator(dir)){
+	for (const directory_entry& entry : directory_iterator(dir)){
 		if (scan(depth, entry)){ret = true;}
 	}
 
@@ -146,7 +146,7 @@ uint64_t getSize(const path& root){
 
 	uint64_t ret = 0;
 	while (!q.empty()){
-		for (const path& i : directory_iterator(q.front())){
+		for (const directory_entry& i : directory_iterator(q.front())){
 			if (!isRealPath(i) || !checkPerm(i, 'r')){continue;}
 			if (is_directory(i)){q.push(i);}
 			else{ret = ret + file_size(i);}

@@ -1,25 +1,28 @@
-ALL: FlexibleBackup
-CPP=g++
-OPT ?= O0
-VERSION=17
+.DELETE_ON_ERROR:
+CXX = g++
+CPPFLAGS ?= -O2
+OBJS = backup.o config.o out.o scan.o shared.o
+EXECUTABLE_NAME = FlexibleBackup
+BIN_PREFIX ?= "$(HOME)/.local/bin"
+CONFIG_PREFIX ?= "$(HOME)/.config"
 
-backup.o: backup.cpp backup.h shared.h
-	$(CPP) -$(OPT) -std=c++$(VERSION) -c backup.cpp
+all: $(OBJS)
+	$(CXX) $(CPPFLAGS) $^ -o $(EXECUTABLE_NAME)
+.PHONY: all
 
-config.o: config.cpp config.h shared.h
-	$(CPP) -$(OPT) -std=c++$(VERSION) -c config.cpp
+%.o : %.c
+	$(CXX) $(CPPFLAGS) -c $^ -o $@
+.PHONY: %.o
 
-out.o: out.cpp out.h shared.h
-	$(CPP) -$(OPT) -std=c++$(VERSION) -c out.cpp
+install:
+	@cp $(EXECUTABLE_NAME) $(BIN_PREFIX)/
+	@cp flexible-backup.conf.example $(CONFIG_PREFIX)/flexible-backup.conf
+.PHONY: install
 
-scan.o: scan.cpp scan.h backup.h config.h out.h shared.h
-	$(CPP) -$(OPT) -std=c++$(VERSION) -c scan.cpp
-
-shared.o: shared.cpp shared.h
-	$(CPP) -$(OPT) -std=c++$(VERSION) -c shared.cpp
-
-FlexibleBackup: backup.o config.o out.o scan.o shared.o
-	$(CPP) -o FlexibleBackup backup.o config.o out.o scan.o shared.o
+uninstall:
+	@rm -f $(BIN_PREFIX)/$(EXECUTABLE_NAME)
+.PHONY: uninstall
 
 clean:
 	rm -f *.o
+.PHONY: clean
