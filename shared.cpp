@@ -15,12 +15,18 @@ path home; //user home directory
 path bacRoot; //directory to begin backup in
 path bacDir; //directory of archives
 vector<gid_t> groups; //user groups
-vector<path> whitelist, blacklist, split, collective;
+vector<path> whitelist;
+unordered_map<uint32_t, path> list[6]; //path lists
 
 bool isRealPath(const path& p, bool allow_symlink){
 	if (!allow_symlink && is_symlink(p)){return false;}
 
 	return !is_other(p);
+}
+
+bool pathInList(const path& p, const uint8_t t){
+	const auto itr = list[t].find(hash_value(p));
+	return itr != list[t].end() && itr->second == p;
 }
 
 bool checkPerm(const path& p, char rwx){

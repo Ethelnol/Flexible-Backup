@@ -38,22 +38,64 @@ void genericError(string& str){
   * Populate vec with entries from word, seperated by c
   **/
 void vectorPushBack(const string& word, vector<path>& vec, const char c){
-	uint32_t beg = 0, end = 0;
+	using std::find_first_of;
 
-	for (; end < word.length(); end++){
-		if (word.at(end) == c){
-			if (beg == end){
-				beg++;
-				continue;
-			}
-
-			vec.emplace_back(word.substr(beg, end - beg));
-			beg = end + 1;
-		}
+	if (word.empty()){
+		return;
 	}
 
-	if (beg != end){
-		vec.emplace_back(word.substr(beg, end - beg));
+	const string separator_char({c});
+	const auto s_beg = separator_char.begin();
+	const auto s_end = separator_char.end();
+
+	auto beg = word.begin();
+	const auto stop = word.end();
+
+	while (beg != stop + 1){
+		const auto end = find_first_of(beg, stop, s_beg, s_end);
+
+		vec.emplace_back(beg, end);
+
+		beg = end + 1;
+	}
+}
+
+/**
+  * mapPushBack() helper function, adds <itr> to list[<t>], <itr> to list[<t> + 1], and all parent paths of <itr> to
+    list[t]
+  */
+void mapPushBackHelper(path itr, const uint8_t t){
+	uint32_t itr_hash = hash_value(itr);
+	list[t + 1].emplace(itr_hash, itr);
+	list[t].emplace(itr_hash, itr);
+
+	const path root(itr.root_name());
+	for (itr = itr.parent_path(); itr != root; itr = itr.parent_path()){
+		if (!list[t].emplace(hash_value(itr), itr).second){
+			return;
+		}
+	}
+}
+
+/**
+  * Populate list[<t>] and list[<t> + 1] using entries from <word> separated by <c>
+  **/
+void mapPushBack(const string& word, const listType t, const char c){
+	using std::find_first_of;
+
+	const string separator_char({c});
+	const auto s_beg = separator_char.begin();
+	const auto s_end = separator_char.end();
+
+	auto beg = word.begin();
+	const auto stop = word.end();
+
+	while (beg != stop + 1){
+		const auto end = find_first_of(beg, stop, s_beg, s_end);
+
+		mapPushBackHelper(path{beg, end}, t);
+
+		beg = end + 1;
 	}
 }
 
@@ -188,7 +230,7 @@ void ReadLine(string& line, vector<string*>& bucket, uint8_t& comType){
 				bacRoot = word;
 			}
 
-			else if (line.at(1) == 'l'){vectorPushBack(word, blacklist, ',');}
+			else if (line.at(1) == 'l'){mapPushBack(word, blacklist, ',');}
 			
 			else{genericError(line);}
 
@@ -209,7 +251,7 @@ void ReadLine(string& line, vector<string*>& bucket, uint8_t& comType){
 
 			//split
 		case 'S':{
-			vectorPushBack(word, split, ',');
+			mapPushBack(word, split, ',');
 			return;
 		}
 
@@ -254,7 +296,11 @@ void ReadLine(string& line, vector<string*>& bucket, uint8_t& comType){
 
 				//collective
 				case 'a':{
-					vectorPushBack(word, collective, ',');
+					mapPushBack(word, collective, ',');
+					break;
+				}
+
+				default:{
 					break;
 				}
 			}
@@ -338,26 +384,10 @@ void ReadConfig(){
 	}
 
 	//check and insert backupDir to blacklist
-	{
-		bool hasDir = false;
-		for (const path& i : blacklist){
-			if (i == bacDir){
-				hasDir = true;
-				break;
-			}
-		}
-		if (!hasDir){blacklist.push_back(bacDir);}
+	if (!pathInList(bacDir, blacklist)){
+		mapPushBackHelper(bacDir, blacklist);
 	}
 
-	//validate that all path vectors contain valid paths and shrink to reduce memory
-	for (vector<path>& v : vector<vector<path>>{whitelist, blacklist, split, collective}){
-		for (const path& p : v){
-			if (!isRealPath(p, true)){
-				error(p, " is not a valid path");
-			}
-		}
-		v.shrink_to_fit();
-	}
 	comArgs.shrink_to_fit();
 }
 
@@ -413,11 +443,6 @@ void WriteConfig(){
 
 //help text
 void outputHelp(){
-	/* One line help
-	std::cout << "Flexible-Backup\nBackup files using tar and a chosen compressor\n\nOptions:\n  -c, --config=PATH           Load config information from PATH\n  -h, --help                  Display this message\n  -r PATH, --root=PATH        Set BackupRootDir to PATH\n  -o PATH, --output=PATH      Set OutputLocation to PATH\n  --maxSize=NB                Set max size a directory can be where N is a number and B is KB to TB\n  -B PATH, --blacklist=PATH   Add PATH to blacklist\n  -W PATH, --whitelist=PATH   Add PATH to Whitelist\n  -S PATH, --splitlist=PATH   Add PATH to SplitBackup\n  -C PATH, --collective=PATH  Add PATH to CollectiveBackup"
-	          << std::endl;
-	*/
-
 	std::cout << "FlexibleBackup\nBackup files using tar and a chosen compressor\n\nOptions:" << std::endl;
 
 	const vector<string> body = {
@@ -490,20 +515,20 @@ bool GetArgsHelper(const string& arg, const string options[2][9]){
 			getMaxSize(o);
 			break;
 		} //maxSize
-		case 5:{
-			blacklist.emplace_back(o);
+	case 5:{
+			list[blacklist].emplace(std::hash<string>{}(o), o);
 			break;
 		} //blacklist
-		case 6:{
+	case 6:{
 			whitelist.emplace_back(o);
 			break;
 		} //whitelist
-		case 7:{
-			split.emplace_back(o);
+	case 7:{
+			list[split].emplace(std::hash<string>{}(o), o);
 			break;
 		} //split
-		case 8:{
-			collective.emplace_back(o);
+	case 8:{
+			list[collective].emplace(std::hash<string>{}(o), o);
 			break;
 		} //collective
 		case 9:{
