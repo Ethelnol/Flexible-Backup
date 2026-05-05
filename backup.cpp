@@ -8,7 +8,7 @@
 #include "shared.h"
 
 //hash table for paths already checked for removal by removeArchive()
-std::unordered_map<size_t, path> remove_table;
+std::unordered_map<uint32_t, path> remove_table;
 
 /**
   * Check for and remove other archives that would contain archive's files
@@ -18,7 +18,7 @@ bool removeArchive(path archive){
 	const path stopDir = bacDir.string() + conExt.string();
 
 	while (archive != stopDir){
-		const size_t a_hash = hash_value(archive);
+		const uint32_t a_hash = hash_value(archive);
 		const auto rmv_path = remove_table.find(a_hash);
 
 		//archive has already been removed
@@ -42,31 +42,34 @@ bool removeArchive(path archive){
 }
 
 bool backup(const path& entry){
-	path archive = bacDir;
-	archive += entry;
-	archive += conExt;
+    path archive = bacDir;
+    archive += entry;
+    archive += conExt;
 
-	if (!exists(archive.parent_path())){
-		create_directories(archive.parent_path());
-	}
+    if (!exists(archive.parent_path())){
+        create_directories(archive.parent_path());
+    }
 
-	if (exists(archive) && last_write_time(entry) <= last_write_time(archive)){
-		return false;
-	}
+    if (exists(archive) && last_write_time(entry) <= last_write_time(archive)){
+        return false;
+    }
 
-	removeArchive(archive);
+    removeArchive(archive);
 
-	//set directory to parent path so archived paths are relative to entry
-	std::string cmd = "sudo tar --absolute-names --directory=\'" +
-					  entry.parent_path().string() + "\' --create --file - \'" +
-					  entry.filename().string() + "\'";
-	if (!comArgs.empty()){cmd += " | " + comArgs;}
+    //set directory to parent path so archived paths are relative to entry
+    std::string cmd = "sudo tar --absolute-names --directory=\'" +
+                      entry.parent_path().string() + "\' --create --file - \'" +
+                      entry.filename().string() + "\'";
 
-	cmd += " > \'" + archive.string() + '\'';
+    if (!comArgs.empty()){
+        cmd += " | " + comArgs;
+    }
 
-	const auto ret = system(cmd.c_str());
-//	if (ret){sig_handler(ret, &archive);}
-	if (ret){sig_handler(ret);}
+    cmd += " > \'" + archive.string() + '\'';
 
-	return true;
+    if (const auto ret = system(cmd.c_str())){
+        sig_handler(ret);
+    }
+
+    return true;
 }
