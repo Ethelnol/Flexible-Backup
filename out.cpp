@@ -2,7 +2,6 @@
   * Created by Ethelnol on 17/09/2025
   **/
 
-#include <algorithm>
 #include <fstream>
 
 #include "out.h"
@@ -11,10 +10,6 @@
 constexpr uint8_t TAB = 4; //num spaces for tab
 std::ofstream ofs;
 
-enum STATUS{
-	scanning, backing, archived, ended
-};
-
 void log_init(){
 	ofs.open(bacDir.string() + "/flexible-backup.log");
 	if (!ofs.is_open()){
@@ -22,93 +17,34 @@ void log_init(){
 	}
 }
 
-/**
-  * Returns "msg : \"p\"" to be output to log file
-  * @pre msg_len is less than 18, msg with largest length is "Already backed up"
-  **/
-char* message(const char* msg, uint8_t msg_len, const path& p){
-	if (!msg || msg_len > 17){return nullptr;}
+void out(const uint32_t depth, const path& p, const STATUS step){
+	using std::cout, std::setw, std::right, std::flush, std::endl;
 
-	auto msg_buffer = 17;
-	const auto ret_len = p.string().length() + 23; //length of p, msg_buffer, 2 spaces, colon, 2 quotes, and NUL
+	const string msg[NUM_STATES] = {
+		"Scanning",
+		"Backing up",
+		"Already backed up",
+		"Backed up",
+		"Skipping",
+		"Scanning deeper"
+	};
+	const string pStr = p.filename().string() + '\"';
 
-	auto ret = new char[ret_len];
-	for (auto i = 0; i < 17 - msg_len; ++i){ret[i] = ' ';}
-	ret[17] = ' ';
-	ret[18] = ':';
-	ret[19] = ' ';
-	ret[20] = '\"';
-	ret[ret_len - 2] = '\"';
-	ret[ret_len - 1] = '\0';
-
-	//fill ret with msg
-	while (msg_len){ret[--msg_buffer] = msg[--msg_len];}
-
-	msg_buffer = 21;
-	for (auto c : p.string()){ret[msg_buffer++] = c;}
-
-	return ret;
-}
-
-/**
-  * Sends len instances of c to out
-  **/
-void outChars(std::basic_ostream<char>& out, uint32_t len, char c){
-	char ret[len + 1];
-	std::fill_n(ret, len, c);
-	ret[len] = '\0';
-
-	out << ret;
-}
-
-/**
-  * Outputs (depth * TABS) spaces, msg, and p depending on step
-  * @param msg_len number of chars in msg such that msg has range of [0, msg_len - 1]
-  * @param step [0] for scanning, [1] for skipping/scanning deeper, [2] for backing up, [3] for (already) backed up
-  **/
-void out(const uint32_t depth, const char* msg, const uint8_t msg_len, const path& p, const STATUS step){
 	//stdout tabs or backspace
-	if (step == scanning){
-		outChars(std::cout, depth * TAB, ' ');
+	if (step == SCANNING){
+		cout << string(depth * TAB, ' ');
 	}
 	else{
-		outChars(std::cout, p.string().length() + 22, '\b');
+		cout << string(pStr.length() + 21, '\b');
 	}
 
 	//stdout message
-	char* output = message(msg, msg_len, p);
-	std::cout << output << std::flush;
+	cout << setw(17) << right << msg[step] << " : \"" << p << flush;
 
 	//ofs tabs and message
-	if (step == archived || step == ended){
-		outChars(ofs, depth * TAB, ' ');
-		ofs << output << '\n';
-		std::cout << std::endl;
+	if (step == BACKED_UP || step == SKIPPING || step == DEEPER){
+		const int32_t space = (depth * TAB) + 17;
+		ofs << setw(space) << right << msg << " : \"" << p << '\n';
+		cout << endl;
 	}
-
-	delete[] output;
-}
-
-void Scanning(uint32_t depth, const path& p){
-	out(depth, "Scanning", 8, p.filename(), scanning);
-}
-
-void Backing(uint32_t depth, const path& p){
-	out(depth, "Backing up", 10, p.filename(), backing);
-}
-
-void Backed(uint32_t depth, const path& p){
-	out(depth, "Backed up", 9, p.filename(), archived);
-}
-
-void A_Backed(uint32_t depth, const path& p){
-	out(depth, "Already backed up", 17, p.filename(), archived);
-}
-
-void Skipping(uint32_t depth, const path& p){
-	out(depth, "Skipping", 8, p.filename(), ended);
-}
-
-void Deeper(uint32_t depth, const path& p){
-	out(depth, "Scanning deeper", 15, p.filename(), ended);
 }

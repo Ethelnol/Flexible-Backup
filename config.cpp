@@ -51,15 +51,14 @@ void vectorPushBack(const string& word, vector<path>& vec, const char c){
 	uint32_t beg = 0, end = 0;
 
 	for (; end < word.length(); end++){
-		if (word.at(end) == c){
-			if (beg == end){
-				beg++;
-				continue;
-			}
-
-			vec.emplace_back(word.substr(beg, end - beg));
-			beg = end + 1;
+		if (word.at(end) != c){continue;}
+		if (beg == end){
+			beg++;
+			continue;
 		}
+
+		vec.emplace_back(word.substr(beg, end - beg));
+		beg = end + 1;
 	}
 
 	if (beg != end){
@@ -178,8 +177,11 @@ void getMaxSize(string& word){
 	//abbreviations
 	const char a[4] = {'K', 'M', 'G', 'B'};
 	//multipliers
-	const uint64_t m[4] = {((uint64_t)1 << 10), ((uint64_t)1 << 20),
-						   ((uint64_t)1 << 30), ((uint64_t)1 << 40)
+	const uint64_t m[4]{
+		                                     0b10'0000'0000, //2^10, 1'024
+		                         0b1000'0000'0000'0000'0000, //2^20, 1'048'576
+		            0b10'0000'0000'0000'0000'0000'0000'0000, //2^30, 1'073'741'824
+		0b1000'0000'0000'0000'0000'0000'0000'0000'0000'0000  //2^40, 1'099'511'627'776
 	};
 
 	if (word.length() < 2 || !std::all_of(word.end() - 2, word.end(), isalpha)){

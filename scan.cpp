@@ -71,12 +71,12 @@ bool plunge(const size_t depth, const path& dir){
   * scan helper function, handles backup text output and returns backup value
   **/
 bool startBackup(const size_t depth, const path& entry){
-	Backing(depth, entry);
+	out(depth, entry, BACKING);
 
-	bool ret = backup(entry);
+	const bool ret = backup(entry);
 
-	if (ret){Backed(depth, entry);}
-	else{A_Backed(depth, entry);}
+	if (ret){out(depth, entry, BACKED_UP);}
+	else{out(depth, entry, UNNEEDED);}
 
 	return ret;
 }
@@ -101,11 +101,11 @@ bool vecSearch(const path& p, const vector<path>& vec, const bool invert){
 }
 
 bool scan(const size_t depth, const path& entry){
-	Scanning(depth, entry);
+	out(depth, entry, SCANNING);
 
 	if (!isRealPath(entry) || !checkPerm(entry, 'r') ||
 	    vecSearch(entry, blacklist, false)){
-		Skipping(depth, entry);
+		out(depth, entry, SKIPPING);
 		return false;
 	}
 
@@ -117,7 +117,7 @@ bool scan(const size_t depth, const path& entry){
 	if (vecSearch(entry, blacklist, true) ||
 	    vecSearch(entry, split, true) ||
 	    getSize(entry) > maxSize){
-		Deeper(depth, entry);
+		out(depth, entry, DEEPER);
 		return plunge(depth + 1, entry);
 	}
 
