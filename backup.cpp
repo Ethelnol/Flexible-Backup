@@ -2,13 +2,11 @@
   * Created by Ethelnol on 16/05/2025
   **/
 
-#include <unordered_map>
-
 #include "backup.h"
 #include "shared.h"
 
 //hash table for paths already checked for removal by removeArchive()
-std::unordered_map<size_t, path> remove_table;
+unordered_map<size_t, path> remove_table;
 
 /**
   * Check for and remove other archives that would contain archive's files
