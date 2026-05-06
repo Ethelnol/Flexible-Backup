@@ -82,18 +82,28 @@ bool startBackup(const size_t depth, const path& entry){
 }
 
 /**
-  * scan helper function, checks if vec contains p or p is a subpath of vec
-  * @param invert true if checking that vec contains entries are subpath of p or are p
+  * scan() helper function, checks if list[<t>] contains <entry> or <entry> is a parent path of path in list[<t>]
+  * @param exact If true, will only return true if <entry> is stored in list[<t> + 1]
+  * @param entry_parents If true, checking that <entry> is parent path of path in list[<t>].
+                         If false, checking that a parent path of <entry> is in list[<t>].
   **/
-bool vecSearch(const path& p, const vector<path>& vec, const bool invert){
-	if (!invert){
-		for (const path& root : vec){
-			if (isSubPath(root, p) || root == p){return true;}
-		}
+bool mapSearch(const path& entry, const uint8_t t, const bool exact = true, const bool entry_parents = true){
+	//<entry> is in list[<t> + 1]
+	if (exact){
+		return pathInList(entry, t + 1);
 	}
-	else{
-		for (const path& entry : vec){
-			if (isSubPath(p, entry) || p == entry){return true;}
+
+	//<entry> is in list[<t> + 1] or is a parent path of a path in list[<t> + 1]
+	const bool isIn = pathInList(entry, t);
+	if (entry_parents || isIn){
+		return isIn;
+	}
+
+	const path root(entry.root_name());
+	//a path in list[<t> + 1] is a parent path of <entry>
+	for (path itr = entry.parent_path(); itr != root; itr = itr.parent_path()){
+		if (pathInList(itr, t)){
+			return true;
 		}
 	}
 
@@ -104,18 +114,18 @@ bool scan(const size_t depth, const path& entry){
 	Scanning(depth, entry);
 
 	if (!isRealPath(entry) || !checkPerm(entry, 'r') ||
-	    vecSearch(entry, blacklist, false)){
+		mapSearch(entry, blacklist, true)){
 		Skipping(depth, entry);
 		return false;
 	}
 
-	if (!is_directory(entry) || vecSearch(entry, collective, false)){
+	if (!is_directory(entry) || mapSearch(entry, collective, true)){
 		return startBackup(depth, entry);
 	}
 
 	//has blacklisted or split subentry
-	if (vecSearch(entry, blacklist, true) ||
-	    vecSearch(entry, split, true) ||
+	if (mapSearch(entry, blacklist, false, true) ||
+	    mapSearch(entry, split, false, true) ||
 	    getSize(entry) > maxSize){
 		Deeper(depth, entry);
 		return plunge(depth + 1, entry);
