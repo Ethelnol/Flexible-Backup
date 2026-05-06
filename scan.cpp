@@ -71,12 +71,12 @@ bool plunge(const size_t depth, const path& dir){
   * scan helper function, handles backup text output and returns backup value
   **/
 bool startBackup(const size_t depth, const path& entry){
-	Backing(depth, entry);
+	out(depth, entry, BACKING);
 
 	bool ret = backup(entry);
 
-	if (ret){Backed(depth, entry);}
-	else{A_Backed(depth, entry);}
+	if (ret){out(depth, entry, BACKED_UP);}
+	else{out(depth, entry, UNNEEDED);}
 
 	return ret;
 }
@@ -111,11 +111,11 @@ bool mapSearch(const path& entry, const uint8_t t, const bool exact = true, cons
 }
 
 bool scan(const size_t depth, const path& entry){
-	Scanning(depth, entry);
+	out(depth, entry, SCANNING);
 
 	if (!isRealPath(entry) || !checkPerm(entry, 'r') ||
 		mapSearch(entry, blacklist, true)){
-		Skipping(depth, entry);
+		out(depth, entry, SKIPPING);
 		return false;
 	}
 
@@ -127,7 +127,7 @@ bool scan(const size_t depth, const path& entry){
 	if (mapSearch(entry, blacklist, false, true) ||
 	    mapSearch(entry, split, false, true) ||
 	    getSize(entry) > maxSize){
-		Deeper(depth, entry);
+		out(depth, entry, DEEPER);
 		return plunge(depth + 1, entry);
 	}
 
