@@ -35,16 +35,21 @@ void out(const uint32_t depth, const path& p, const STATUS step){
 		cout << string(depth * TAB, ' ');
 	}
 	else{
-		cout << string(pStr.length() + 21, '\b');
+		const string::size_type n = 3 * (pStr.length() + 21);
+		string backspaces(n, '\b');
+		for (auto i = 0; i < n; ++i){
+			backspaces[(++i)++] = ' ';
+		}
+		cout << backspaces;
 	}
 
 	//stdout message
-	cout << setw(17) << right << msg[step] << " : \"" << p << flush;
+	const string::size_type space = 17 - msg[step].length();
+	cout << string(space, ' ') << msg[step] << " : \"" << pStr << flush;
 
 	//ofs tabs and message
-	if (step == BACKED_UP || step == SKIPPING || step == DEEPER){
-		const int32_t space = (depth * TAB) + 17;
-		ofs << setw(space) << right << msg << " : \"" << p << '\n';
-		cout << endl;
+	if (step != SCANNING && step != BACKING){
+		ofs << string((depth * TAB) + space, ' ') << msg[step] << " : \"" << pStr << '\n';
+		cout << '\n';
 	}
 }
